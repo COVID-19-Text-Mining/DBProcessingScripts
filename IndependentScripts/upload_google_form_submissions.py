@@ -19,7 +19,7 @@ client = pymongo.MongoClient(os.getenv("COVID_HOST"), username=os.getenv("COVID_
                              password=os.getenv("COVID_PASS"), authSource=os.getenv("COVID_DB"))
 db = client[os.getenv("COVID_DB")]
 
-present_dois = set([e['doi'] for e in db.google_form_submissions.find()])
+present_rows = set([e['row_id'] for e in db.google_form_submissions.find()])
 #Entries collection format
 """
 {
@@ -55,7 +55,7 @@ present_dois = set([e['doi'] for e in db.google_form_submissions.find()])
 }
 """
 
-def parse_row(row):
+def parse_row(i, row):
     doc = dict()
     doc['last_updated'] = datetime.datetime.strptime(row[0],"%m/%d/%Y %H:%M:%S")
     doc['submission_email'] = row[1]
@@ -67,6 +67,7 @@ def parse_row(row):
     doc['summary_human'] = row[7]
     doc['abstract'] = row[8]
     doc['relevance_human'] = row[9]
+    doc['row_id'] = i
 
     return doc
 
@@ -106,10 +107,10 @@ def main():
     if not values:
         print('No data found.')
     else:
-        for row in values:
+        for i, row in enumerate(values):
             # Print columns A and E, which correspond to indices 0 and 4.
-            doc = parse_row(row)
-            if not doc['doi'] in present_dois:
+            doc = parse_row(i, row)
+            if not doc['row_id'] in present_rows:
                 db.google_form_submissions.insert_one(doc)
 
 if __name__ == '__main__':
