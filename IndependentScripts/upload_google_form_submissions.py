@@ -65,7 +65,7 @@ def parse_row(row):
     doc['category_human'] = [row[5]]
     doc['keywords'] = row[6].split(',')
     doc['summary_human'] = row[7]
-    dpc['abstract'] = row[8]
+    doc['abstract'] = row[8]
     doc['relevance_human'] = row[9]
 
     return doc
