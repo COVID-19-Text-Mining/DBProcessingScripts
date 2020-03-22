@@ -1,8 +1,10 @@
 import datetime
 import re
+import traceback
 from collections import Counter
 from io import StringIO
 
+import gridfs
 from pdfminer.converter import TextConverter
 from pdfminer.layout import LAParams, LTContainer, LTTextBox
 from pdfminer.pdfdocument import PDFDocument
@@ -156,5 +158,21 @@ def parse_biorxiv_doc(doc, db):
     parsed_doc['Authors'] = author_list
 
     parsed_doc['Abstract'] = doc['Abstract']
+
+    paper_fs = gridfs.GridFS(
+        db, collection='Scraper_connect_biorxiv_org_fs')
+    pdf_file = paper_fs.get(doc['PDF_gridfs_id'])
+
+    try:
+        paragraphs = extract_paragraphs_pdf(pdf_file)
+    except Exception as e:
+        print('Failed to extract PDF %s(%r) (%r)' % (doc['Doi'], doc['PDF_gridfs_id'], e))
+        traceback.print_exc()
+        paragraphs = []
+
+    parsed_doc['Body_Text'] = [{
+        'Section_Heading': None,
+        'Text': x
+    } for x in paragraphs]
 
     return parsed_doc
