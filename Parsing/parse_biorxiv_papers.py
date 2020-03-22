@@ -1,8 +1,10 @@
 import datetime
 import re
+import traceback
 from collections import Counter
-from io import StringIO
+from io import StringIO, BytesIO
 
+import gridfs
 from pdfminer.converter import TextConverter
 from pdfminer.layout import LAParams, LTContainer, LTTextBox
 from pdfminer.pdfdocument import PDFDocument
@@ -83,11 +85,15 @@ def extract_paragraphs_pdf(pdf_file):
 
     for i, page in enumerate(device.get_true_paragraphs()):
         for j, p in enumerate(sorted(page, key=paragraph_pos_rank)):
+            text = p['text'].strip()
+
             if j == 0 and len(paragraphs) > 0:
-                if paragraphs[-1][-1].islower() and p[0].islower():
-                    paragraphs[-1] = paragraphs[-1] + ' ' + p
+                if (
+                        (paragraphs[-1][-1].islower() or paragraphs[-1][-1].isdigit()) and
+                        (text[0].islower() or text[0].isdigit())):
+                    paragraphs[-1] = paragraphs[-1] + ' ' + text
                     continue
-            paragraphs.append(p['text'])
+            paragraphs.append(text)
 
     return paragraphs
 
@@ -147,14 +153,30 @@ def parse_biorxiv_doc(doc, db):
 
     parsed_doc['Journal'] = doc['Journal']
 
-    parsed_doc['Publication Date'] = doc['Publication Date']
+    parsed_doc['Publication Date'] = doc['Publication_Date']
 
     author_list = doc["Authors"]
     for a in author_list:
-        a['Name'] = a['fn'] + " " + a['ln']
+        a['Name'] = a['Name']['fn'] + " " + a['Name']['ln']
 
     parsed_doc['Authors'] = author_list
 
     parsed_doc['Abstract'] = doc['Abstract']
+
+    paper_fs = gridfs.GridFS(
+        db, collection='Scraper_connect_biorxiv_org_fs')
+    pdf_file = paper_fs.get(doc['PDF_gridfs_id'])
+
+    try:
+        paragraphs = extract_paragraphs_pdf(BytesIO(pdf_file.read()))
+    except Exception as e:
+        print('Failed to extract PDF %s(%r) (%r)' % (doc['Doi'], doc['PDF_gridfs_id'], e))
+        traceback.print_exc()
+        paragraphs = []
+
+    parsed_doc['Body Text'] = [{
+        'Section Heading': None,
+        'Text': x
+    } for x in paragraphs]
 
     return parsed_doc
