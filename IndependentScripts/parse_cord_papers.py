@@ -2,6 +2,7 @@ import pymongo
 import os
 import datetime
 from pprint import pprint
+from collections  import defaultdict
 
 client = pymongo.MongoClient(os.getenv("COVID_HOST"), username=os.getenv("COVID_USER"),
                              password=os.getenv("COVID_PASS"), authSource=os.getenv("COVID_DB"))
@@ -65,8 +66,23 @@ for collection_name in CORD_collection_names:
 		parsed_doc['Last Updated'] = datetime.datetime.now()
 		parsed_doc['Link'] = "https://doi.org/%s"%parsed_doc['Doi']
 
-		parsed_doc["Journal"] = None
-		parsed_doc['Publication Date'] = None
+		try:
+			parsed_doc["Journal"] = doc['journal_name']
+		except KeyError:
+			parsed_doc["Journal"] = None
+	
+		try:
+			publication_date_dict = defaultdict(lambda: 1)
+
+			for k,v in doc['publish_date']:
+				publication_date_dict[k] = v
+
+			#Year is mandatory
+			parsed_doc['Publication Date'] = Datetime.Datetime(year=doc['publish_date']['year'], month=publication_date_dict['month'], day=publication_date_dict['day'])
+
+			parsed_doc["Publication Date"] = publication_date_dict
+		except KeyError:
+			parsed_doc['Publication Date'] = None
 
 		author_list = []
 		for a in doc['metadata']['authors']:
@@ -92,6 +108,12 @@ for collection_name in CORD_collection_names:
 				author_list.append(author)
 
 		parsed_doc['Authors'] = author_list
+
+		abstract = ""
+		for t in doc['abstract']:
+			abstract += t['text']
+
+		parsed_doc['Abstract'] = abstract
 
 		sections = dict()
 		for t in doc['body_text']:
