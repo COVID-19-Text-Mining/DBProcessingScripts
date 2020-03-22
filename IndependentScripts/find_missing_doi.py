@@ -140,6 +140,7 @@ def clean_title(title):
     clean_title = clean_title.replace("Running Title: ", "")
     clean_title = clean_title.replace("Short Title: ", "")
     clean_title = clean_title.replace("Title: ", "")
+    clean_title = clean_title.lower()
     clean_title = clean_title.strip()
     return clean_title
 
@@ -328,7 +329,7 @@ def doi_match_a_batch(task_batch):
             for item in cross_ref_results:
                 if len(item['title']) != 1:
                     print("len(item['title'])", len(item['title']))
-                cr_title = item['title'][0]
+                cr_title = clean_title(item['title'][0])
                 similarity = text_similarity_by_char(cr_title, title)
                 if (len(cr_title) > LEAST_TITLE_LEN
                     and len(title) > LEAST_TITLE_LEN
@@ -390,6 +391,7 @@ def doi_match_a_batch_by_csv(task_batch):
     mongo_db = get_mongo_db('../config.json')
     csv_data = pd.read_csv('../rsc/metadata.csv')
     csv_data = csv_data.fillna('')
+    csv_data['title'] = csv_data['title'].str.lower()
     for i, task in enumerate(task_batch):
         if i % 100 == 0:
             print('thread', threading.currentThread().getName())
@@ -497,8 +499,8 @@ def doi_match_a_batch_by_csv(task_batch):
 
 def foo(mongo_db, num_cores=4):
     for col_name in mongo_db.collection_names():
-        if col_name != 'CORD_noncomm_use_subset':
-            continue
+        # if col_name != 'CORD_noncomm_use_subset':
+        #     continue
         if col_name not in PAPER_COLLECTIONS:
             continue
         col = mongo_db[col_name]
@@ -573,6 +575,6 @@ if __name__ == '__main__':
 
     # doi_existence_stat(db)
 
-    # foo(db)
+    # foo(db, num_cores=8)
 
     bar(db, num_cores=8)
