@@ -2,24 +2,28 @@ from __future__ import print_function
 import pickle
 import os.path
 from googleapiclient.discovery import build
+from googleapiclient import http, errors
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from pprint import pprint
 import datetime
 import pymongo
 import os
+import gridfs
 
-SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly',
+    'https://www.googleapis.com/auth/drive.readonly']
 
 SAMPLE_SPREADSHEET_ID = "1mjnPab5eo5wCu0UQLXt_HM8yXR6pWfLr5zfqzp2GLFM"
 #Current number of fields we have
 SAMPLE_RANGE_NAME = 'A2:J'
 
+collection_name = "google_form_submissions"
 client = pymongo.MongoClient(os.getenv("COVID_HOST"), username=os.getenv("COVID_USER"),
                              password=os.getenv("COVID_PASS"), authSource=os.getenv("COVID_DB"))
 db = client[os.getenv("COVID_DB")]
 
-present_rows = set([e['row_id'] for e in db.google_form_submissions.find()])
+present_rows = set([e['row_id'] for e in db[collection_name].find()])
 #Entries collection format
 """
 {
@@ -54,12 +58,38 @@ present_rows = set([e['row_id'] for e in db.google_form_submissions.find()])
 
 }
 """
+paper_fs = gridfs.GridFS(db, collection=collection_name + '_fs')
+
+def download_file(service, file_id, local_fd):
+  """Download a Drive file's content to the local filesystem.
+
+  Args:
+    service: Drive API Service instance.
+    file_id: ID of the Drive file that will downloaded.
+    local_fd: io.Base or file object, the stream that the Drive file's
+        contents will be written to.
+  """
+  request = service.files().get_media(fileId=file_id)
+  media_request = http.MediaIoBaseDownload(local_fd, request)
+
+  while True:
+    try:
+      download_progress, done = media_request.next_chunk()
+    except errors.HttpError as error:
+      print('An error occurred: %s') % error
+      return
+    if download_progress:
+      print('Download Progress: %d%%') % int(download_progress.progress() * 100)
+    if done:
+      print('Download Complete')
+      return
 
 def parse_row(i, row):
     doc = dict()
     doc['last_updated'] = datetime.datetime.strptime(row[0],"%m/%d/%Y %H:%M:%S")
     doc['submission_email'] = row[1]
     doc['pdf_location'] = row[2]
+    doc['file_id'] = doc['pdf_location'].split('open?id=')[1]
     doc['link'] = row[3]
     doc['doi'] = row[4]
     doc['category_human'] = [row[5]]
@@ -109,9 +139,19 @@ def main():
     else:
         for i, row in enumerate(values):
             # Print columns A and E, which correspond to indices 0 and 4.
-            doc = parse_row(i, row)
+            doc = parse_row(i, row,)
             if not doc['row_id'] in present_rows:
-                db.google_form_submissions.insert_one(doc)
+                pprint(doc)
+                service = build('drive', 'v3', credentials=creds)
+                local_file_dir = '/tmp/{}'.format(doc['file_id'])
+                download_file(service, doc['file_id'], open(local_file_dir,'wb'))
+                doc['PDF_gridfs_id'] = paper_fs.put(
+                        open(local_file_dir,'rb'),
+                        filename=doc['file_id'],
+                        manager_collection=collection_name,
+                    )
+
+                db[google_form_submissions].insert_one(doc)
 
 if __name__ == '__main__':
     main()

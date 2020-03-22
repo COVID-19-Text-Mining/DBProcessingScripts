@@ -48,16 +48,16 @@ def clean_title(title):
 """
 def parse_cord_doc(doc, collection_name):
 	parsed_doc = dict()
-	parsed_doc['Title'] = doc['metadata']['title']
-	parsed_doc['Doi'] = doc['doi'].strip()
-	parsed_doc['Origin'] = collection_name
+	parsed_doc['title'] = doc['metadata']['title']
+	parsed_doc['doi'] = doc['doi'].strip()
+	parsed_doc['origin'] = collection_name
 	parsed_doc['last_updated'] = datetime.datetime.now()
-	parsed_doc['Link'] = "https://doi.org/%s"%parsed_doc['Doi']
+	parsed_doc['link'] = "https://doi.org/%s"%parsed_doc['Doi']
 
 	try:
-		parsed_doc["Journal"] = doc['journal_name']
+		parsed_doc["journal"] = doc['journal_name']
 	except KeyError:
-		parsed_doc["Journal"] = None
+		parsed_doc["journal"] = None
 
 	try:
 		publication_date_dict = defaultdict(lambda: 1)
@@ -66,11 +66,11 @@ def parse_cord_doc(doc, collection_name):
 			publication_date_dict[k] = v
 
 		#Year is mandatory
-		parsed_doc['Publication Date'] = Datetime.Datetime(year=doc['publish_date']['year'], month=publication_date_dict['month'], day=publication_date_dict['day'])
+		parsed_doc['publication_date'] = Datetime.Datetime(year=doc['publish_date']['year'], month=publication_date_dict['month'], day=publication_date_dict['day'])
 
-		parsed_doc["Publication Date"] = publication_date_dict
+		parsed_doc["publication_date"] = publication_date_dict
 	except KeyError:
-		parsed_doc['Publication Date'] = None
+		parsed_doc['publication_date'] = None
 
 	author_list = []
 	for a in doc['metadata']['authors']:
@@ -95,13 +95,13 @@ def parse_cord_doc(doc, collection_name):
 		if len(author['Name']) > 3:
 			author_list.append(author)
 
-	parsed_doc['Authors'] = author_list
+	parsed_doc['authors'] = author_list
 
 	abstract = ""
 	for t in doc['abstract']:
 		abstract += t['text']
 
-	parsed_doc['Abstract'] = abstract
+	parsed_doc['abstract'] = abstract
 
 	sections = dict()
 	for t in doc['body_text']:
@@ -111,7 +111,7 @@ def parse_cord_doc(doc, collection_name):
 			sections[t['section']] = t['text']
 
 	sections_list = [{"Section Heading": k, "Text": v} for k,v in sections.items()]
-	parsed_doc['Body Text'] = sections_list
+	parsed_doc['body_text'] = sections_list
 
 	citations_list = []
 	for entry in doc['bib_entries'].values():
@@ -119,6 +119,6 @@ def parse_cord_doc(doc, collection_name):
 			citations_list.append(entry['other_ids']['DOI'])
 
 
-	parsed_doc['Citations'] = citations_list
+	parsed_doc['citations'] = citations_list
 
 	return parsed_doc

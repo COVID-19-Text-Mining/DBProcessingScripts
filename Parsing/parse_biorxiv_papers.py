@@ -141,23 +141,23 @@ def clean_title(title):
 
 def parse_biorxiv_doc(doc, db):
     parsed_doc = dict()
-    parsed_doc['Title'] = doc['Title']
-    parsed_doc['Doi'] = doc['Doi']
-    parsed_doc['Origin'] = "Scraper_connect_biorxiv_org"
+    parsed_doc['title'] = doc['Title']
+    parsed_doc['doi'] = doc['Doi']
+    parsed_doc['origin'] = "Scraper_connect_biorxiv_org"
     parsed_doc['last_updated'] = datetime.datetime.now()
-    parsed_doc['Link'] = doc['Link']
+    parsed_doc['link'] = doc['Link']
 
-    parsed_doc['Journal'] = doc['Journal']
+    parsed_doc['journal'] = doc['Journal']
 
-    parsed_doc['Publication Date'] = doc['Publication Date']
+    parsed_doc['publication_date'] = doc['Publication Date']
 
     author_list = doc["Authors"]
     for a in author_list:
         a['Name'] = a['fn'] + " " + a['ln']
 
-    parsed_doc['Authors'] = author_list
+    parsed_doc['authors'] = author_list
 
-    parsed_doc['Abstract'] = doc['Abstract']
+    parsed_doc['abstract'] = doc['Abstract']
 
     paper_fs = gridfs.GridFS(
         db, collection='Scraper_connect_biorxiv_org_fs')
@@ -170,7 +170,7 @@ def parse_biorxiv_doc(doc, db):
         traceback.print_exc()
         paragraphs = []
 
-    parsed_doc['Body_Text'] = [{
+    parsed_doc['body_text'] = [{
         'Section_Heading': None,
         'Text': x
     } for x in paragraphs]
