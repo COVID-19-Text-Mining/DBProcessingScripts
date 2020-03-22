@@ -12,6 +12,10 @@ SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
 SAMPLE_SPREADSHEET_ID = "1mjnPab5eo5wCu0UQLXt_HM8yXR6pWfLr5zfqzp2GLFM"
 SAMPLE_RANGE_NAME = 'A2:J'
 
+client = pymongo.MongoClient(os.getenv("COVID_HOST"), username=os.getenv("COVID_USER"),
+                             password=os.getenv("COVID_PASS"), authSource=os.getenv("COVID_DB"))
+db = client[os.getenv("COVID_DB")]
+
 #Entries collection format
 """
 {
@@ -46,6 +50,19 @@ SAMPLE_RANGE_NAME = 'A2:J'
 
 }
 """
+Timestamp   Email Address   PDF Upload  URL/Link    DOI COVID Category  Keywords    Summary of Findings Abstract    Community Relevance
+def parse_and_upload_row(row):
+    doc = dict()
+    # doc['last_updated'] = Datetime.Datetime.
+    doc['submission_email'] = row[1]
+    doc['PDF_location'] = row[2]
+    doc['Link'] = row[3]
+    doc['Doi'] = row[4]
+    doc['Category_human'] = [row[5]]
+    doc['Keywords'] = row[6].split(',')
+    doc['Summary_human'] = row[7]
+    dpc['Abstract'] = row[8]
+    doc['Relevance_human'] = row[9]
 
 def main():
     """Shows basic usage of the Sheets API.

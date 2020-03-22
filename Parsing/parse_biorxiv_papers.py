@@ -137,7 +137,7 @@ def clean_title(title):
 """
 
 
-def parse_biorxiv_doc(doc):
+def parse_biorxiv_doc(doc, db):
     parsed_doc = dict()
     parsed_doc['Title'] = doc['Title']
     parsed_doc['Doi'] = doc['Doi']

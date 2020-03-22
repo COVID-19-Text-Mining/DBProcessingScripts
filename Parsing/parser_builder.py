@@ -24,7 +24,7 @@ biorxiv_db = MongoStore(database=os.getenv("COVID_DB"),
 
 biorxiv_builder = MapBuilder(source=biorxiv_db,
                            	 target=entries_db,
-                          	 ufn=parse_biorxiv_doc,
+                          	 ufn=lambda x: parse_biorxiv_doc(x, biorxiv_db.database),
                           	 incremental=True,
                            	 delete_orphans=False,
                            	 query=None,
