@@ -4,18 +4,22 @@ import os.path
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
+from pprint import pprint
+import datetime
+import pymongo
+import os
 
-# If modifying these scopes, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
 
-# The ID and range of a sample spreadsheet.
 SAMPLE_SPREADSHEET_ID = "1mjnPab5eo5wCu0UQLXt_HM8yXR6pWfLr5zfqzp2GLFM"
+#Current number of fields we have
 SAMPLE_RANGE_NAME = 'A2:J'
 
 client = pymongo.MongoClient(os.getenv("COVID_HOST"), username=os.getenv("COVID_USER"),
                              password=os.getenv("COVID_PASS"), authSource=os.getenv("COVID_DB"))
 db = client[os.getenv("COVID_DB")]
 
+present_dois = set([e['doi'] for e in db.google_form_submissions.find()])
 #Entries collection format
 """
 {
@@ -50,19 +54,22 @@ db = client[os.getenv("COVID_DB")]
 
 }
 """
-Timestamp   Email Address   PDF Upload  URL/Link    DOI COVID Category  Keywords    Summary of Findings Abstract    Community Relevance
-def parse_and_upload_row(row):
+
+def parse_row(row):
     doc = dict()
-    # doc['last_updated'] = Datetime.Datetime.
+    doc['last_updated'] = datetime.datetime.strptime(row[0],"%m/%d/%Y %H:%M:%S")
     doc['submission_email'] = row[1]
-    doc['PDF_location'] = row[2]
-    doc['Link'] = row[3]
-    doc['Doi'] = row[4]
-    doc['Category_human'] = [row[5]]
-    doc['Keywords'] = row[6].split(',')
-    doc['Summary_human'] = row[7]
-    dpc['Abstract'] = row[8]
-    doc['Relevance_human'] = row[9]
+    doc['pdf_location'] = row[2]
+    doc['link'] = row[3]
+    doc['doi'] = row[4]
+    doc['category_human'] = [row[5]]
+    doc['keywords'] = row[6].split(',')
+    doc['summary_human'] = row[7]
+    dpc['abstract'] = row[8]
+    doc['relevance_human'] = row[9]
+
+    return doc
+
 
 def main():
     """Shows basic usage of the Sheets API.
@@ -101,7 +108,9 @@ def main():
     else:
         for row in values:
             # Print columns A and E, which correspond to indices 0 and 4.
-            print(row)
+            doc = parse_row(row)
+            if not doc['doi'] in present_dois:
+                db.google_form_submissions.insert_one(doc)
 
 if __name__ == '__main__':
     main()
