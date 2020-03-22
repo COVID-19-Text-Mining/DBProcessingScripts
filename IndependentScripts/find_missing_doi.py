@@ -14,6 +14,7 @@ import numpy as np
 from statsmodels.stats.weightstats import DescrStatsW
 import seaborn as sns
 import multiprocessing as mp
+import pandas as pd
 
 from common_utils import get_mongo_db
 
@@ -60,6 +61,7 @@ def doi_existence_stat(mongo_db):
             '$where': 'this.doi.length > 0',
         })
         query_w_crossref_tried = col.find({'tried_crossref_doi': True})
+        query_w_csv_tried = col.find({'tried_csv_doi': True})
         query_wo_doi_title_empty = col.find({
             'doi': {'$exists': False},
             'metadata': {'$exists': True},
@@ -70,6 +72,7 @@ def doi_existence_stat(mongo_db):
         print('query_w_doi', query_w_doi.count())
         print('query_w_doi_len_gt_0', query_w_doi_len_gt_0.count())
         print('query_w_crossref_tried', query_w_crossref_tried.count())
+        print('query_w_csv_tried', query_w_csv_tried.count())
         print('query_wo_doi_title_empty', query_wo_doi_title_empty.count())
         print()
 
@@ -137,10 +140,46 @@ def clean_title(title):
     clean_title = clean_title.replace("Running Title: ", "")
     clean_title = clean_title.replace("Short Title: ", "")
     clean_title = clean_title.replace("Title: ", "")
+    clean_title = clean_title.lower()
     clean_title = clean_title.strip()
     return clean_title
 
-def text_similarity_by_char(text_1, text_2):
+def correct_pd_dict(input_dict):
+    """
+        Correct the encoding of python dictionaries so they can be encoded to mongodb
+        https://stackoverflow.com/questions/30098263/inserting-a-document-with-
+        pymongo-invaliddocument-cannot-encode-object
+        inputs
+        -------
+        input_dict : dictionary instance to add as document
+        output
+        -------
+        output_dict : new dictionary with (hopefully) corrected encodings
+    """
+
+    output_dict = {}
+    for key1, val1 in input_dict.items():
+        # Nested dictionaries
+        if isinstance(val1, dict):
+            val1 = correct_pd_dict(val1)
+
+        if isinstance(val1, np.bool_):
+            val1 = bool(val1)
+
+        if isinstance(val1, np.int64):
+            val1 = int(val1)
+
+        if isinstance(val1, np.float64):
+            val1 = float(val1)
+
+        if isinstance(val1, set):
+            val1 = list(val1)
+
+        output_dict[key1] = val1
+
+    return output_dict
+
+def text_similarity_by_char(text_1, text_2, quick_mode=False):
     """
     calculate similarity by comparing char difference
 
@@ -152,19 +191,20 @@ def text_similarity_by_char(text_1, text_2):
     ref_len_ = max(float(len(text_1)), float(len(text_2)), 1.0)
     max(float(len(text_2)), 1.0)
     # find the same strings
-    same_char = difflib.SequenceMatcher(None, text_1, text_2).get_matching_blocks()
-    same_char = sum(
-        [tmp_block.size for tmp_block in same_char]
-    ) / float(max(len(text_1), len(text_2), 1.0))
-    # find the different strings
-    try:
-        diff_char = 1 - Levenshtein.distance(text_1, text_2) / float(
-            max(min(len(text_1), len(text_2)), 1.0))
-    except:
-        print('text_1', text_1)
-        print('text_2', text_2)
+    if not quick_mode:
+        same_char = difflib.SequenceMatcher(None, text_1, text_2).get_matching_blocks()
+        same_char = sum(
+            [tmp_block.size for tmp_block in same_char]
+        ) / float(max(len(text_1), len(text_2), 1.0))
 
-    similarity = (same_char + diff_char) / 2.0
+    # find the different strings
+    diff_char = 1 - Levenshtein.distance(text_1, text_2) / float(
+        max(min(len(text_1), len(text_2)), 1.0))
+
+    if not quick_mode:
+        similarity = (same_char + diff_char) / 2.0
+    else:
+        similarity = diff_char
     # print(text_1, text_2, same_char, diff_char, similarity, maxlarity, answer_simis)
     return similarity
 
@@ -205,6 +245,7 @@ def doi_match_a_batch(task_batch):
                 # TODO: we can also use abstract when metadata is not available
                 continue
             raw_title = metadata['title']
+            print('raw_title', raw_title)
             title = clean_title(raw_title)
 
 
@@ -232,10 +273,14 @@ def doi_match_a_batch(task_batch):
             query_params['query.bibliographic'] = author_names
         # TODO: might also use email to search?
 
-        cross_ref_results = requests.get(
-            query_url,
-            params=query_params,
-        )
+        try:
+            cross_ref_results = requests.get(
+                query_url,
+                params=query_params,
+            )
+        except:
+            print('request to cross_ref failed!')
+            continue
         try:
             cross_ref_results = cross_ref_results.json()
         except Exception as e:
@@ -284,7 +329,7 @@ def doi_match_a_batch(task_batch):
             for item in cross_ref_results:
                 if len(item['title']) != 1:
                     print("len(item['title'])", len(item['title']))
-                cr_title = item['title'][0]
+                cr_title = clean_title(item['title'][0])
                 similarity = text_similarity_by_char(cr_title, title)
                 if (len(cr_title) > LEAST_TITLE_LEN
                     and len(title) > LEAST_TITLE_LEN
@@ -318,9 +363,9 @@ def doi_match_a_batch(task_batch):
                 {"_id": doc['_id']},
                 {
                     "$set": {
-                        "doi": item['DOI'],
+                        "doi": matched_item['DOI'],
                         'tried_crossref_doi': True,
-                        'crossref_raw_result': item,
+                        'crossref_raw_result': matched_item,
                         'last_updated': datetime.now(),
                     }
                 }
@@ -342,11 +387,120 @@ def doi_match_a_batch(task_batch):
                 }
             )
 
+def doi_match_a_batch_by_csv(task_batch):
+    mongo_db = get_mongo_db('../config.json')
+    csv_data = pd.read_csv('../rsc/metadata.csv')
+    csv_data = csv_data.fillna('')
+    csv_data['title'] = csv_data['title'].str.lower()
+    for i, task in enumerate(task_batch):
+        if i % 100 == 0:
+            print('thread', threading.currentThread().getName())
+            print('processing the {}th out of {}'.format(i, len(task_batch)))
+        col = mongo_db[task['col_name']]
+
+        # get doc
+        doc = col.find_one({'_id': task['_id']})
+        if doc is None:
+            continue
+
+        doc_updated = False
+
+        # get metadata
+        metadata = None
+        if ('metadata' in doc):
+            metadata = doc['metadata']
+        else:
+            # let's supporse metadata is always used first
+            # TODO: we can also use abstract when metadata is not available
+            continue
+
+
+        # get title
+        title = None
+        raw_title = None
+        if metadata is not None:
+            if not ('title' in metadata
+                and isinstance(metadata['title'], str)
+                and len(metadata['title'].strip()) > 0
+            ):
+                # doc w/o is minor part let's ignore them first
+                # TODO: we can also use abstract when metadata is not available
+                continue
+            raw_title = metadata['title']
+            print('raw_title', raw_title)
+            title = clean_title(raw_title)
+
+
+        # get author
+        author_names = None
+        if metadata is not None:
+            try:
+                author_names = ",".join([a['last'] for a in metadata['authors']])
+            except KeyError:
+                author_names = None
+
+        # query csv_data
+        matched_item = None
+
+        # csv_results = csv_data[csv_data['title']==raw_title].to_dict(orient='records')
+        # if len(csv_results)  == 1:
+        #     matched_item = csv_results[0]
+
+        similarity = csv_data.apply(
+            lambda x: text_similarity_by_char(x['title'], title, quick_mode=True),
+            axis=1
+        )
+        sim_csv_data = csv_data[similarity>=2*LEAST_TEXT_SIMILARITY-1]
+        if len(sim_csv_data) > 0:
+            similarity = sim_csv_data.apply(
+                lambda x: text_similarity_by_char(x['title'], title, quick_mode=False),
+                axis=1
+            )
+            sorted_similarity = similarity.sort_values(ascending=False)
+            sorted_data = sim_csv_data.reindex(index=sorted_similarity.index)
+            if (len(title) > LEAST_TITLE_LEN
+                and len(sorted_data.iloc[0]['title']) > LEAST_TITLE_LEN
+                and sorted_similarity.iloc[0] > LEAST_TEXT_SIMILARITY):
+                print('raw_title: ', raw_title)
+                print('title', title)
+                print("csv_title", sorted_data.iloc[0]['title'])
+                print('similarity', sorted_similarity.iloc[0])
+                print()
+                matched_item = correct_pd_dict(sorted_data.iloc[0].to_dict())
+
+        # update db
+        set_params = {
+            "tried_csv_doi": True,
+            'last_updated': datetime.now(),
+        }
+
+        # update doi found
+        if matched_item is not None:
+            print("FOUND")
+            print()
+            set_params['csv_raw_result'] = matched_item
+            if matched_item.get('doi') and (isinstance(matched_item['doi'], str)):
+                set_params['doi'] = matched_item['doi']
+
+            doc_updated = True
+
+        try:
+            col.find_one_and_update(
+                {"_id": doc['_id']},
+                {
+                    "$set": set_params,
+                }
+            )
+        except Exception as e:
+            print('matched_item')
+            pprint(matched_item)
+            print(e)
+            raise e
 
 def foo(mongo_db, num_cores=4):
     for col_name in mongo_db.collection_names():
-        if col_name != 'CORD_noncomm_use_subset':
-            continue
+        # if col_name != 'CORD_noncomm_use_subset':
+        #     continue
         if col_name not in PAPER_COLLECTIONS:
             continue
         col = mongo_db[col_name]
@@ -364,8 +518,6 @@ def foo(mongo_db, num_cores=4):
             task['col_name'] = col_name
         print('len(all_tasks)', len(all_tasks))
 
-        # doi_match_a_batch(task_batch=all_tasks)
-
         parallel_arguments = []
         num_task_per_batch = int(len(all_tasks) / num_cores)
         print('num_task_per_batch', num_task_per_batch)
@@ -381,10 +533,48 @@ def foo(mongo_db, num_cores=4):
         p.join()
 
 
+def bar(mongo_db, num_cores=1):
+    for col_name in mongo_db.collection_names():
+        # if col_name != 'CORD_noncomm_use_subset':
+        #     continue
+        if col_name not in PAPER_COLLECTIONS:
+            continue
+        col = mongo_db[col_name]
+        query = col.find(
+            {
+                "tried_csv_doi" : { "$exists" : True },
+                "doi" : { "$exists" : False }
+            },
+            {
+                '_id': True
+            }
+        )
+        all_tasks = list(query)
+        for task in all_tasks:
+            task['col_name'] = col_name
+        print('len(all_tasks)', len(all_tasks))
+
+        parallel_arguments = []
+        num_task_per_batch = int(len(all_tasks) / num_cores)
+        print('num_task_per_batch', num_task_per_batch)
+        for i in range(num_cores):
+            if i < num_cores - 1:
+                parallel_arguments.append((all_tasks[i * num_task_per_batch: (i + 1) * num_task_per_batch],))
+            else:
+                parallel_arguments.append((all_tasks[i * num_task_per_batch:], ))
+
+        p = mp.Pool(processes=num_cores)
+        all_summary = p.starmap(doi_match_a_batch_by_csv, parallel_arguments)
+        p.close()
+        p.join()
+
+
 if __name__ == '__main__':
     db = get_mongo_db('../config.json')
     print(db.collection_names())
 
     # doi_existence_stat(db)
 
-    foo(db)
+    # foo(db, num_cores=8)
+
+    bar(db, num_cores=8)
