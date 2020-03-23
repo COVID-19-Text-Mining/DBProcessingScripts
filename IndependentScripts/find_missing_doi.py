@@ -248,7 +248,9 @@ def correct_pd_dict(input_dict):
 def text_similarity_by_char(text_1,
                             text_2,
                             quick_mode=False,
-                            enable_ignore_begin_end=False):
+                            enable_ignore_begin_end=False,
+                            least_text_len=LEAST_TITLE_LEN,
+                            ignore_begin_end_thresh=IGNORE_BEGIN_END_SIMILARITY):
     """
     calculate similarity by comparing char difference
 
@@ -268,16 +270,16 @@ def text_similarity_by_char(text_1,
         ) / float(max(len(text_1), len(text_2), 1.0))
         same_char_2 = 0
         if enable_ignore_begin_end and len(same_char) > 0:
-            text_1_new = text_1[same_char[0].a: same_char[-1].a + same_char[-1].size]
-            text_2_new = text_2[same_char[0].b: same_char[-1].b + same_char[-1].size]
-            if (len(text_1_new) > LEAST_TITLE_LEN
-                and len(text_2_new) > LEAST_TITLE_LEN
-                and len(text_1_new)/max(len(text_1), 1.0) > IGNORE_BEGIN_END_SIMILARITY
-                and len(text_2_new)/max(len(text_2), 1.0) > IGNORE_BEGIN_END_SIMILARITY
+            text_1 = text_1[same_char[0].a: same_char[-1].a + same_char[-1].size]
+            text_2 = text_2[same_char[0].b: same_char[-1].b + same_char[-1].size]
+            if (len(text_1) > least_text_len
+                and len(text_2) > least_text_len
+                and len(text_1)/max(len(text_1), 1.0) > ignore_begin_end_thresh
+                and len(text_2)/max(len(text_2), 1.0) > ignore_begin_end_thresh
             ):
                 same_char_2 = sum(
                     [tmp_block.size for tmp_block in same_char]
-                ) / float(max(len(text_1_new), len(text_2_new), 1.0))
+                ) / float(max(len(text_1), len(text_2), 1.0))
         same_char_ratio = max(same_char_1, same_char_2)
     # find the different strings
     diff_char_ratio = 1 - Levenshtein.distance(text_1, text_2) / float(
@@ -290,7 +292,7 @@ def text_similarity_by_char(text_1,
     # print(text_1, text_2, same_char, diff_char, similarity, maxlarity, answer_simis)
     return similarity
 
-def doi_match_a_batch(task_batch):
+def doi_match_a_batch_by_crossref(task_batch):
     mongo_db = get_mongo_db('../config.json')
     for i, task in enumerate(task_batch):
         if i % 100 == 0:
@@ -669,7 +671,7 @@ def foo(mongo_db, num_cores=4):
                 parallel_arguments.append((all_tasks[i * num_task_per_batch:], ))
 
         p = mp.Pool(processes=num_cores)
-        all_summary = p.starmap(doi_match_a_batch, parallel_arguments)
+        all_summary = p.starmap(doi_match_a_batch_by_crossref, parallel_arguments)
         p.close()
         p.join()
 
