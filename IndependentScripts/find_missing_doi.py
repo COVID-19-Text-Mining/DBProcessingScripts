@@ -44,7 +44,28 @@ PAPER_COLLECTIONS = {
 # 0.97    174
 # 0.99    194
 LEAST_TITLE_LEN = 16
-LEAST_TEXT_SIMILARITY = 0.95
+AVG_TITLE_LEN = 97
+LEAST_TITLE_SIMILARITY = 0.95
+IGNORE_BEGIN_END_SIMILARITY = 0.90
+# abstract len stat shows that
+# mean = 1544.1819507148232
+# std = 1116.3547477100615
+# percentile:
+# 0.00       1
+# 0.01     132
+# 0.02     234
+# 0.03     316
+# 0.04     360
+# 0.05     414
+# 0.10     676
+# 0.25    1020
+# 0.50    1394
+# 0.75    1800
+# 0.95    2927
+# 0.97    3614
+# 0.99    5909
+LEAST_ABS_LEN = 132
+LEAST_ABS_SIMILARITY = 0.90
 
 #######################################
 # functions for stats
@@ -130,6 +151,51 @@ def title_len_stat(mongo_db):
 
     return len_counter_db, len_counter_cr
 
+
+def abs_len_stat(mongo_db):
+    len_counter = collections.Counter()
+    for col_name in mongo_db.collection_names():
+        if col_name not in PAPER_COLLECTIONS:
+            continue
+        col = mongo_db[col_name]
+        query_w_doi = col.find({'abstract': {'$exists': True}})
+        for doc in query_w_doi:
+            # get abstract
+            abstract = None
+            if 'abstract' in doc and len(doc['abstract']) > 0:
+                abstract = ''
+                for fragment in doc['abstract']:
+                    if ('text' in fragment
+                            and isinstance(fragment['text'], str)
+                            and len(fragment['text']) > 0
+                    ):
+                        abstract += fragment['text'].strip() + ' '
+
+                abstract = abstract.strip()
+                if len(abstract) == 0:
+                    abstract = None
+
+            if abstract is not None:
+                #                 print(abstract)
+                len_counter[len(abstract)] += 1
+
+    # stat for db abs
+    sorted_len = sorted(len_counter.keys())
+    weights = [len_counter[l] for l in sorted_len]
+    weighted_stats = DescrStatsW(sorted_len, weights=weights)
+    sns.barplot(sorted_len, weights)
+    percentile = weighted_stats.quantile(
+        probs=[0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.1, 0.25, 0.5, 0.75, 0.95, 0.97, 0.99]
+    )
+    print('len_counter')
+    pprint(len_counter)
+    print('weighted_stats.mean', weighted_stats.mean)
+    print('weighted_stats.std', weighted_stats.std)
+    print('percentile')
+    print(percentile)
+
+    return len_counter
+
 #######################################
 # functions for doi searching task
 #######################################
@@ -179,7 +245,10 @@ def correct_pd_dict(input_dict):
 
     return output_dict
 
-def text_similarity_by_char(text_1, text_2, quick_mode=False):
+def text_similarity_by_char(text_1,
+                            text_2,
+                            quick_mode=False,
+                            enable_ignore_begin_end=False):
     """
     calculate similarity by comparing char difference
 
@@ -193,18 +262,31 @@ def text_similarity_by_char(text_1, text_2, quick_mode=False):
     # find the same strings
     if not quick_mode:
         same_char = difflib.SequenceMatcher(None, text_1, text_2).get_matching_blocks()
-        same_char = sum(
+        same_char = list(filter(lambda x: x.size > 0, same_char))
+        same_char_1 = sum(
             [tmp_block.size for tmp_block in same_char]
         ) / float(max(len(text_1), len(text_2), 1.0))
-
+        same_char_2 = 0
+        if enable_ignore_begin_end and len(same_char) > 0:
+            text_1_new = text_1[same_char[0].a: same_char[-1].a + same_char[-1].size]
+            text_2_new = text_2[same_char[0].b: same_char[-1].b + same_char[-1].size]
+            if (len(text_1_new) > LEAST_TITLE_LEN
+                and len(text_2_new) > LEAST_TITLE_LEN
+                and len(text_1_new)/max(len(text_1), 1.0) > IGNORE_BEGIN_END_SIMILARITY
+                and len(text_2_new)/max(len(text_2), 1.0) > IGNORE_BEGIN_END_SIMILARITY
+            ):
+                same_char_2 = sum(
+                    [tmp_block.size for tmp_block in same_char]
+                ) / float(max(len(text_1_new), len(text_2_new), 1.0))
+        same_char_ratio = max(same_char_1, same_char_2)
     # find the different strings
-    diff_char = 1 - Levenshtein.distance(text_1, text_2) / float(
+    diff_char_ratio = 1 - Levenshtein.distance(text_1, text_2) / float(
         max(min(len(text_1), len(text_2)), 1.0))
 
     if not quick_mode:
-        similarity = (same_char + diff_char) / 2.0
+        similarity = (same_char_ratio + diff_char_ratio) / 2.0
     else:
-        similarity = diff_char
+        similarity = diff_char_ratio
     # print(text_1, text_2, same_char, diff_char, similarity, maxlarity, answer_simis)
     return similarity
 
@@ -333,7 +415,7 @@ def doi_match_a_batch(task_batch):
                 similarity = text_similarity_by_char(cr_title, title)
                 if (len(cr_title) > LEAST_TITLE_LEN
                     and len(title) > LEAST_TITLE_LEN
-                    and similarity > LEAST_TEXT_SIMILARITY):
+                    and similarity > LEAST_TITLE_SIMILARITY):
                     print('raw_title: ', raw_title)
                     print('title', title)
                     print("cr_title", cr_title)
@@ -439,34 +521,93 @@ def doi_match_a_batch_by_csv(task_batch):
             except KeyError:
                 author_names = None
 
+        # get abstract
+        abstract = None
+        if 'abstract' in doc and len(doc['abstract']) > 0:
+            abstract = ''
+            for fragment in doc['abstract']:
+                if ('text' in fragment
+                    and isinstance(fragment['text'], str)
+                    and len(fragment['text']) > 0
+                ):
+                    abstract += fragment['text'].strip() + ' '
+
+            abstract = abstract.strip()
+            if len(abstract) == 0:
+                abstract = None
+
         # query csv_data
         matched_item = None
 
-        # csv_results = csv_data[csv_data['title']==raw_title].to_dict(orient='records')
-        # if len(csv_results)  == 1:
-        #     matched_item = csv_results[0]
-
-        similarity = csv_data.apply(
-            lambda x: text_similarity_by_char(x['title'], title, quick_mode=True),
-            axis=1
-        )
-        sim_csv_data = csv_data[similarity>=2*LEAST_TEXT_SIMILARITY-1]
-        if len(sim_csv_data) > 0:
-            similarity = sim_csv_data.apply(
-                lambda x: text_similarity_by_char(x['title'], title, quick_mode=False),
+        # match by title
+        if title is not None:
+            similarity = csv_data.apply(
+                lambda x: text_similarity_by_char(x['title'], title, quick_mode=True),
                 axis=1
             )
-            sorted_similarity = similarity.sort_values(ascending=False)
-            sorted_data = sim_csv_data.reindex(index=sorted_similarity.index)
-            if (len(title) > LEAST_TITLE_LEN
-                and len(sorted_data.iloc[0]['title']) > LEAST_TITLE_LEN
-                and sorted_similarity.iloc[0] > LEAST_TEXT_SIMILARITY):
-                print('raw_title: ', raw_title)
-                print('title', title)
-                print("csv_title", sorted_data.iloc[0]['title'])
-                print('similarity', sorted_similarity.iloc[0])
-                print()
-                matched_item = correct_pd_dict(sorted_data.iloc[0].to_dict())
+            sim_csv_data = csv_data[similarity>=2*LEAST_TITLE_SIMILARITY-1]
+            if len(sim_csv_data) > 0:
+                similarity = sim_csv_data.apply(
+                    lambda x: text_similarity_by_char(x['title'], title, quick_mode=False),
+                    axis=1
+                )
+                sorted_similarity = similarity.sort_values(ascending=False)
+                sorted_data = sim_csv_data.reindex(index=sorted_similarity.index)
+                if (len(title) > LEAST_TITLE_LEN
+                    and len(sorted_data.iloc[0]['title']) > LEAST_TITLE_LEN
+                    and sorted_similarity.iloc[0] > LEAST_TITLE_SIMILARITY):
+                    print('raw_title: ', raw_title)
+                    print('title', title)
+                    print("csv_title", sorted_data.iloc[0]['title'])
+                    print('similarity', sorted_similarity.iloc[0])
+                    print()
+                    matched_item = correct_pd_dict(sorted_data.iloc[0].to_dict())
+
+            if matched_item is None and len(sim_csv_data) > 0:
+                similarity = sim_csv_data.apply(
+                    lambda x: text_similarity_by_char(
+                        x['title'],
+                        title,
+                        quick_mode=False,
+                        enable_ignore_begin_end=True
+                    ),
+                    axis=1
+                )
+                sorted_similarity = similarity.sort_values(ascending=False)
+                sorted_data = sim_csv_data.reindex(index=sorted_similarity.index)
+                if (len(title) > LEAST_TITLE_LEN
+                        and len(sorted_data.iloc[0]['title']) > LEAST_TITLE_LEN
+                        and sorted_similarity.iloc[0] > LEAST_TITLE_SIMILARITY):
+                    print('result after ignore_begin_end')
+                    print('raw_title: ', raw_title)
+                    print('title', title)
+                    print("csv_title", sorted_data.iloc[0]['title'])
+                    print('similarity', sorted_similarity.iloc[0])
+                    print()
+                    matched_item = correct_pd_dict(sorted_data.iloc[0].to_dict())
+
+        if abstract is not None and matched_item is None:
+            # match by abstract
+            similarity = csv_data.apply(
+                lambda x: text_similarity_by_char(x['abstract'], abstract, quick_mode=True),
+                axis=1
+            )
+            sim_csv_data = csv_data[similarity>=2*LEAST_ABS_SIMILARITY-1]
+            if len(sim_csv_data) > 0:
+                similarity = sim_csv_data.apply(
+                    lambda x: text_similarity_by_char(x['abstract'], abstract, quick_mode=False),
+                    axis=1
+                )
+                sorted_similarity = similarity.sort_values(ascending=False)
+                sorted_data = sim_csv_data.reindex(index=sorted_similarity.index)
+                if (len(abstract) > LEAST_ABS_LEN
+                    and len(sorted_data.iloc[0]['abstract']) > LEAST_TITLE_LEN
+                    and sorted_similarity.iloc[0] > LEAST_ABS_SIMILARITY):
+                    print('abstract', abstract)
+                    print("csv_abstract", sorted_data.iloc[0]['abstract'])
+                    print('similarity', sorted_similarity.iloc[0])
+                    print()
+                    matched_item = correct_pd_dict(sorted_data.iloc[0].to_dict())
 
         # update db
         set_params = {
