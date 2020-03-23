@@ -16,9 +16,7 @@ import seaborn as sns
 import multiprocessing as mp
 import pandas as pd
 
-from common_utils import get_mongo_db
-
-# TODO: need a num from stas here
+from common_utils import get_mongo_db, parse_date
 
 PAPER_COLLECTIONS = {
     'CORD_biorxiv_medrxiv',
@@ -67,6 +65,8 @@ IGNORE_BEGIN_END_SIMILARITY = 0.75
 # 0.99    5909
 LEAST_ABS_LEN = 132
 LEAST_ABS_SIMILARITY = 0.90
+
+PATTERN_DATE_0 = '%m/%d/%Y'
 
 #######################################
 # functions for stats
@@ -196,6 +196,132 @@ def abs_len_stat(mongo_db):
     print(percentile)
 
     return len_counter
+
+
+#######################################
+# functions for post processing
+#######################################
+
+def add_useful_fields(mongo_db):
+    for col_name in mongo_db.collection_names():
+        # if col_name != 'CORD_custom_license':
+        #     continue
+        if col_name not in PAPER_COLLECTIONS:
+            continue
+        print('col_name', col_name)
+        col = mongo_db[col_name]
+        # interpret csv_raw_result
+        query = col.find(
+            {
+                "csv_raw_result" : { "$exists" : True },
+            },
+        )
+        query = list(query)
+        print('len(query) csv_raw_result', len(query))
+        for doc in query:
+            set_params = {}
+            # TODO: type of pubmed_id is wrong currently, need to change from float to str
+            #  let's change pmcid and publish_time to str, too
+            # pmcid
+            if ('pmcid' in doc['csv_raw_result']
+                and isinstance(doc['csv_raw_result']['pmcid'], str)
+                and len(doc['csv_raw_result']['pmcid'].strip()) > 0
+            ):
+                set_params['pmcid'] = doc['csv_raw_result']['pmcid'].strip()
+
+            # pubmed_id
+            if ('pubmed_id' in doc['csv_raw_result']
+                and isinstance(doc['csv_raw_result']['pubmed_id'], str)
+                and len(doc['csv_raw_result']['pubmed_id'].strip()) > 0
+            ):
+                set_params['pubmed_id'] = doc['csv_raw_result']['pubmed_id'].strip()
+
+            # pubmed_id
+            if ('Microsoft Academic Paper ID' in doc['csv_raw_result']
+                and isinstance(doc['csv_raw_result']['Microsoft Academic Paper ID'], str)
+                and len(doc['csv_raw_result']['Microsoft Academic Paper ID'].strip()) > 0
+            ):
+                set_params['microsoft_academic_paper_id'] = doc['csv_raw_result']['Microsoft Academic Paper ID'].strip()
+
+            # journal_name
+            if ('journal' in doc['csv_raw_result']
+                and isinstance(doc['csv_raw_result']['journal'], str)
+                and len(doc['csv_raw_result']['journal'].strip()) > 0
+            ):
+                set_params['journal_name'] = doc['csv_raw_result']['journal'].strip()
+
+            # publish_date
+            if ('publish_time' in doc['csv_raw_result']
+                and isinstance(doc['csv_raw_result']['publish_time'], str)
+                and len(doc['csv_raw_result']['publish_time'].strip()) > 0
+            ):
+                set_params['publish_date'] = parse_date(doc['csv_raw_result']['publish_time'].strip())
+
+            # update doc
+            if len(set_params) > 0:
+                try:
+                    col.find_one_and_update(
+                        {"_id": doc['_id']},
+                        {
+                            "$set": set_params,
+                        }
+                    )
+                except Exception as e:
+                    print('doc _id', doc['_id'])
+                    print('set_params', set_params)
+                    print(e)
+                    raise e
+
+        # # interpret crossref_raw_result
+        # query = col.find(
+        #     {
+        #         "crossref_raw_result" : { "$exists" : True },
+        #     },
+        # )
+        # query = list(query)
+        # print('len(query) crossref_raw_result', len(query))
+        # for doc in query:
+        #     set_params = {}
+        #     # journal_name
+        #     journal_name = None
+        #     if ('container-title' in doc['crossref_raw_result']
+        #         and isinstance(doc['crossref_raw_result']['container-title'], list)
+        #         and len(doc['crossref_raw_result']['container-title']) == 1
+        #     ):
+        #         journal_name = doc['crossref_raw_result']['container-title'][0]
+        #     if (journal_name is None
+        #         and 'short-container-title' in doc['crossref_raw_result']
+        #         and isinstance(doc['crossref_raw_result']['short-container-title'], list)
+        #         and len(doc['crossref_raw_result']['short-container-title']) == 1
+        #     ):
+        #         journal_name = doc['crossref_raw_result']['short-container-title'][0]
+        #     if journal_name is not None:
+        #         set_params['journal_name'] = journal_name
+        #
+        #     # publish_date
+        #     if ('issued' in doc['csv_raw_result']
+        #         and isinstance(doc['csv_raw_result']['publish_time'], str)
+        #         and len(doc['csv_raw_result']['publish_time'].strip()) > 0
+        #     ):
+        #         set_params['publish_date'] = parse_date(doc['csv_raw_result']['publish_time'].strip())
+        #
+        #     # reference
+        #
+        #     # update doc
+        #     if len(set_params) > 0:
+        #         try:
+        #             col.find_one_and_update(
+        #                 {"_id": doc['_id']},
+        #                 {
+        #                     "$set": set_params,
+        #                 }
+        #             )
+        #         except Exception as e:
+        #             print('doc _id', doc['_id'])
+        #             print('set_params', set_params)
+        #             print(e)
+        #             raise e
+
 
 #######################################
 # functions for doi searching task
@@ -470,11 +596,19 @@ def doi_match_a_batch_by_crossref(task_batch):
 
 def doi_match_a_batch_by_csv(task_batch):
     mongo_db = get_mongo_db('../config.json')
-    csv_data = pd.read_csv('../rsc/metadata.csv')
+    csv_data = pd.read_csv(
+        '../rsc/metadata.csv',
+        dtype={
+            'pubmed_id': str,
+            'pmcid': str,
+            'publish_time': str,
+            'Microsoft Academic Paper ID': str,
+        }
+    )
     csv_data = csv_data.fillna('')
     csv_data['title'] = csv_data['title'].str.lower()
     for i, task in enumerate(task_batch):
-        if i % 100 == 0:
+        if i % 10 == 0:
             print('thread', threading.currentThread().getName())
             print('processing the {}th out of {}'.format(i, len(task_batch)))
         col = mongo_db[task['col_name']]
@@ -623,28 +757,28 @@ def doi_match_a_batch_by_csv(task_batch):
             'last_updated': datetime.now(),
         }
 
-        # # update doi found
-        # if matched_item is not None:
-        #     print("FOUND")
-        #     print()
-        #     set_params['csv_raw_result'] = matched_item
-        #     if matched_item.get('doi') and (isinstance(matched_item['doi'], str)):
-        #         set_params['doi'] = matched_item['doi']
-        #
-        #     doc_updated = True
-        #
-        # try:
-        #     col.find_one_and_update(
-        #         {"_id": doc['_id']},
-        #         {
-        #             "$set": set_params,
-        #         }
-        #     )
-        # except Exception as e:
-        #     print('matched_item')
-        #     pprint(matched_item)
-        #     print(e)
-        #     raise e
+        # update doi found
+        if matched_item is not None:
+            print("FOUND")
+            print()
+            set_params['csv_raw_result'] = matched_item
+            if matched_item.get('doi') and (isinstance(matched_item['doi'], str)):
+                set_params['doi'] = matched_item['doi']
+
+            doc_updated = True
+
+        try:
+            col.find_one_and_update(
+                {"_id": doc['_id']},
+                {
+                    "$set": set_params,
+                }
+            )
+        except Exception as e:
+            print('matched_item')
+            pprint(matched_item)
+            print(e)
+            raise e
 
 def foo(mongo_db, num_cores=4):
     for col_name in mongo_db.collection_names():
@@ -657,7 +791,8 @@ def foo(mongo_db, num_cores=4):
         query = col.find(
             {
                 "tried_crossref_doi" : { "$exists" : True },
-                "doi" : { "$exists" : False }
+                "doi" : { "$exists" : False },
+                "crossref_raw_result": {"$exists": False},
             },
             {
                 '_id': True
@@ -693,8 +828,9 @@ def bar(mongo_db, num_cores=1):
         col = mongo_db[col_name]
         query = col.find(
             {
-                "tried_csv_doi" : { "$exists" : False },
-                "doi" : { "$exists" : False }
+                "tried_csv_doi": {"$exists": True},
+                "doi": {"$exists": False},
+                "csv_raw_result": {"$exists": False},
             },
             {
                 '_id': True
@@ -705,8 +841,9 @@ def bar(mongo_db, num_cores=1):
             [
                 {
                     '$match': {
-                        "tried_csv_doi" : { "$exists" : False },
-                        "doi" : { "$exists" : False }
+                        "tried_csv_doi" : { "$exists" : True },
+                        "doi" : { "$exists" : False },
+                        "csv_raw_result" : { "$exists" : False },
                     }
                 },
                 {
@@ -744,6 +881,8 @@ if __name__ == '__main__':
 
     # doi_existence_stat(db)
 
+    add_useful_fields(db)
+
     # foo(db, num_cores=8)
 
-    bar(db, num_cores=4)
+    # bar(db, num_cores=4)
