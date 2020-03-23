@@ -6,17 +6,75 @@ from io import StringIO, BytesIO
 
 import gridfs
 from pdfminer.converter import TextConverter
-from pdfminer.layout import LAParams, LTContainer, LTTextBox
+from pdfminer.layout import LAParams, LTContainer, LTTextBox, LTLayoutContainer, LTTextLineHorizontal, \
+    LTTextBoxHorizontal, LTTextBoxVertical
 from pdfminer.pdfdocument import PDFDocument
 from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
 from pdfminer.pdfpage import PDFPage
 from pdfminer.pdfparser import PDFParser
+from pdfminer.utils import Plane, uniq
+
+
+def group_textlines(self, laparams, lines):
+    """Patched class method that fixes empty line aggregation, and allows
+    run-time line margin detection"""
+    plane = Plane(self.bbox)
+    plane.extend(lines)
+    boxes = {}
+    for line in lines:
+        neighbors = line.find_neighbors(plane, laparams.line_margin)
+        if line not in neighbors or not line.get_text().strip():
+            continue
+
+        # Correct margin to paragraph specific
+        true_margin = laparams.line_margin
+        for obj1 in neighbors:
+            if obj1 is line:
+                continue
+            margin = min(abs(obj1.y0 - line.y1), abs(obj1.y1 - line.y0))
+            margin = margin * 1.05 / line.height
+            if margin < true_margin:
+                true_margin = margin
+
+        neighbors = line.find_neighbors(plane, true_margin)
+        if line not in neighbors:
+            continue
+
+        members = []
+        for obj1 in neighbors:
+            if not obj1.get_text().strip():
+                continue
+            members.append(obj1)
+            if obj1 in boxes:
+                members.extend(boxes.pop(obj1))
+        if isinstance(line, LTTextLineHorizontal):
+            box = LTTextBoxHorizontal()
+        else:
+            box = LTTextBoxVertical()
+        for obj in uniq(members):
+            box.add(obj)
+            boxes[obj] = box
+    done = set()
+    for line in lines:
+        if line not in boxes:
+            continue
+        box = boxes[line]
+        if box in done:
+            continue
+        done.add(box)
+        if not box.is_empty():
+            yield box
+    return
+
+
+# Patch the method
+LTLayoutContainer.group_textlines = group_textlines
 
 
 class TextHandler(TextConverter):
     def __init__(self, rsrcmgr):
         super(TextHandler, self).__init__(
-            rsrcmgr, StringIO(), laparams=LAParams())
+            rsrcmgr, StringIO(), laparams=LAParams(line_margin=2.5))
 
         self.pages = []
 
@@ -81,6 +139,9 @@ def extract_paragraphs_pdf(pdf_file):
         x, y = p['bbox'][0], -p['bbox'][1]
         return int(y)
 
+    def is_ending_char(c):
+        return re.match(r'!\.\?', c) is not None
+
     paragraphs = []
 
     for i, page in enumerate(device.get_true_paragraphs()):
@@ -88,9 +149,8 @@ def extract_paragraphs_pdf(pdf_file):
             text = p['text'].strip()
 
             if j == 0 and len(paragraphs) > 0:
-                if (
-                        (paragraphs[-1][-1].islower() or paragraphs[-1][-1].isdigit()) and
-                        (text[0].islower() or text[0].isdigit())):
+                if (not is_ending_char(paragraphs[-1][-1]) and
+                        not text[0].isupper()):
                     paragraphs[-1] = paragraphs[-1] + ' ' + text
                     continue
             paragraphs.append(text)
@@ -153,7 +213,7 @@ def parse_biorxiv_doc(doc, db):
 
     parsed_doc['journal'] = doc['Journal']
 
-    parsed_doc['publication_date'] = doc['Publication Date']
+    parsed_doc['publication_date'] = doc['Publication_Date']
 
     author_list = doc["Authors"]
     for a in author_list:

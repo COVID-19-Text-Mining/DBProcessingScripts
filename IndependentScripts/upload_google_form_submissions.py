@@ -79,7 +79,7 @@ def download_file(service, file_id, local_fd):
       print('An error occurred: %s') % error
       return
     if download_progress:
-      print('Download Progress: %d%%') % int(download_progress.progress() * 100)
+      print('Download Progress: {}'.format(download_progress.progress()))
     if done:
       print('Download Complete')
       return
@@ -89,7 +89,10 @@ def parse_row(i, row):
     doc['last_updated'] = datetime.datetime.strptime(row[0],"%m/%d/%Y %H:%M:%S")
     doc['submission_email'] = row[1]
     doc['pdf_location'] = row[2]
-    doc['file_id'] = doc['pdf_location'].split('open?id=')[1]
+    try:
+        doc['file_id'] = doc['pdf_location'].split('open?id=')[1]
+    except IndexError:
+        doc['file_id'] = ""
     doc['link'] = row[3]
     doc['doi'] = row[4]
     doc['category_human'] = [row[5]]
@@ -139,19 +142,19 @@ def main():
     else:
         for i, row in enumerate(values):
             # Print columns A and E, which correspond to indices 0 and 4.
-            doc = parse_row(i, row,)
+            doc = parse_row(i, row)
             if not doc['row_id'] in present_rows:
                 pprint(doc)
-                service = build('drive', 'v3', credentials=creds)
-                local_file_dir = '/tmp/{}'.format(doc['file_id'])
-                download_file(service, doc['file_id'], open(local_file_dir,'wb'))
-                doc['PDF_gridfs_id'] = paper_fs.put(
-                        open(local_file_dir,'rb'),
-                        filename=doc['file_id'],
-                        manager_collection=collection_name,
-                    )
+                # service = build('drive', 'v3', credentials=creds)
+                # local_file_dir = '/tmp/{}'.format(doc['file_id'])
+                # download_file(service, doc['file_id'], open(local_file_dir,'wb'))
+                # doc['PDF_gridfs_id'] = paper_fs.put(
+                #         open(local_file_dir,'rb'),
+                #         filename=doc['file_id'],
+                #         manager_collection=collection_name,
+                #     )
 
-                db[google_form_submissions].insert_one(doc)
+                db[collection_name].insert_one(doc)
 
 if __name__ == '__main__':
     main()
