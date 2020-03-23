@@ -213,7 +213,7 @@ def parse_biorxiv_doc(doc, db):
 
     parsed_doc['journal'] = doc['Journal']
 
-    parsed_doc['publication_date'] = doc['Publication Date']
+    parsed_doc['publication_date'] = doc['Publication_Date']
 
     author_list = doc["Authors"]
     for a in author_list:
