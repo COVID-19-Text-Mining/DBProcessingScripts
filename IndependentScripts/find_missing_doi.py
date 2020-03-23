@@ -44,9 +44,10 @@ PAPER_COLLECTIONS = {
 # 0.97    174
 # 0.99    194
 LEAST_TITLE_LEN = 16
+FIVE_PERCENT_TITLE_LEN = 39
 AVG_TITLE_LEN = 97
-LEAST_TITLE_SIMILARITY = 0.95
-IGNORE_BEGIN_END_SIMILARITY = 0.90
+LEAST_TITLE_SIMILARITY = 0.90
+IGNORE_BEGIN_END_SIMILARITY = 0.75
 # abstract len stat shows that
 # mean = 1544.1819507148232
 # std = 1116.3547477100615
@@ -201,11 +202,7 @@ def abs_len_stat(mongo_db):
 #######################################
 
 def clean_title(title):
-    clean_title = title.split("Running Title")[0]
-    clean_title = re.sub('( [0-9])*$', '', clean_title)
-    clean_title = clean_title.replace("Running Title: ", "")
-    clean_title = clean_title.replace("Short Title: ", "")
-    clean_title = clean_title.replace("Title: ", "")
+    clean_title = title
     clean_title = clean_title.lower()
     clean_title = clean_title.strip()
     return clean_title
@@ -249,8 +246,8 @@ def text_similarity_by_char(text_1,
                             text_2,
                             quick_mode=False,
                             enable_ignore_begin_end=False,
-                            least_text_len=LEAST_TITLE_LEN,
-                            ignore_begin_end_thresh=IGNORE_BEGIN_END_SIMILARITY):
+                            ignore_begin_end_text_len=FIVE_PERCENT_TITLE_LEN,
+                            ignore_begin_end_similarity=IGNORE_BEGIN_END_SIMILARITY):
     """
     calculate similarity by comparing char difference
 
@@ -272,10 +269,10 @@ def text_similarity_by_char(text_1,
         if enable_ignore_begin_end and len(same_char) > 0:
             text_1 = text_1[same_char[0].a: same_char[-1].a + same_char[-1].size]
             text_2 = text_2[same_char[0].b: same_char[-1].b + same_char[-1].size]
-            if (len(text_1) > least_text_len
-                and len(text_2) > least_text_len
-                and len(text_1)/max(len(text_1), 1.0) > ignore_begin_end_thresh
-                and len(text_2)/max(len(text_2), 1.0) > ignore_begin_end_thresh
+            if (len(text_1) > ignore_begin_end_text_len
+                and len(text_2) > ignore_begin_end_text_len
+                and len(text_1)/max(len(text_1), 1.0) > ignore_begin_end_similarity
+                and len(text_2)/max(len(text_2), 1.0) > ignore_begin_end_similarity
             ):
                 same_char_2 = sum(
                     [tmp_block.size for tmp_block in same_char]
@@ -503,16 +500,17 @@ def doi_match_a_batch_by_csv(task_batch):
         title = None
         raw_title = None
         if metadata is not None:
-            if not ('title' in metadata
+            if ('title' in metadata
                 and isinstance(metadata['title'], str)
                 and len(metadata['title'].strip()) > 0
             ):
-                # doc w/o is minor part let's ignore them first
-                # TODO: we can also use abstract when metadata is not available
-                continue
-            raw_title = metadata['title']
-            print('raw_title', raw_title)
-            title = clean_title(raw_title)
+                raw_title = metadata['title']
+                # print('raw_title', raw_title)
+                title = clean_title(raw_title)
+            # else:
+            #     # doc w/o is minor part let's ignore them first
+            #     # TODO: we can also use abstract when metadata is not available
+            #     continue
 
 
         # get author
@@ -542,12 +540,13 @@ def doi_match_a_batch_by_csv(task_batch):
         matched_item = None
 
         # match by title
-        if title is not None:
+        if title is not None and matched_item is None:
             similarity = csv_data.apply(
                 lambda x: text_similarity_by_char(x['title'], title, quick_mode=True),
                 axis=1
             )
-            sim_csv_data = csv_data[similarity>=2*LEAST_TITLE_SIMILARITY-1]
+            # sim_csv_data = csv_data[similarity>=2*LEAST_TITLE_SIMILARITY-1]
+            sim_csv_data = csv_data[similarity>=0.5]
             if len(sim_csv_data) > 0:
                 similarity = sim_csv_data.apply(
                     lambda x: text_similarity_by_char(x['title'], title, quick_mode=False),
@@ -555,14 +554,19 @@ def doi_match_a_batch_by_csv(task_batch):
                 )
                 sorted_similarity = similarity.sort_values(ascending=False)
                 sorted_data = sim_csv_data.reindex(index=sorted_similarity.index)
+
+                print('raw_title: ', raw_title)
+                print('title', title)
+                print("csv_title", sorted_data.iloc[0]['title'])
+                print('similarity', sorted_similarity.iloc[0])
+                print(sorted_similarity.head(10))
+                print('len(raw_title)', len(raw_title))
+                print('doi', sorted_data.iloc[0]['doi'])
+                print()
+
                 if (len(title) > LEAST_TITLE_LEN
                     and len(sorted_data.iloc[0]['title']) > LEAST_TITLE_LEN
                     and sorted_similarity.iloc[0] > LEAST_TITLE_SIMILARITY):
-                    print('raw_title: ', raw_title)
-                    print('title', title)
-                    print("csv_title", sorted_data.iloc[0]['title'])
-                    print('similarity', sorted_similarity.iloc[0])
-                    print()
                     matched_item = correct_pd_dict(sorted_data.iloc[0].to_dict())
 
             if matched_item is None and len(sim_csv_data) > 0:
@@ -571,7 +575,9 @@ def doi_match_a_batch_by_csv(task_batch):
                         x['title'],
                         title,
                         quick_mode=False,
-                        enable_ignore_begin_end=True
+                        enable_ignore_begin_end=True,
+                        ignore_begin_end_text_len=FIVE_PERCENT_TITLE_LEN,
+                        ignore_begin_end_similarity=IGNORE_BEGIN_END_SIMILARITY,
                     ),
                     axis=1
                 )
@@ -617,28 +623,28 @@ def doi_match_a_batch_by_csv(task_batch):
             'last_updated': datetime.now(),
         }
 
-        # update doi found
-        if matched_item is not None:
-            print("FOUND")
-            print()
-            set_params['csv_raw_result'] = matched_item
-            if matched_item.get('doi') and (isinstance(matched_item['doi'], str)):
-                set_params['doi'] = matched_item['doi']
-
-            doc_updated = True
-
-        try:
-            col.find_one_and_update(
-                {"_id": doc['_id']},
-                {
-                    "$set": set_params,
-                }
-            )
-        except Exception as e:
-            print('matched_item')
-            pprint(matched_item)
-            print(e)
-            raise e
+        # # update doi found
+        # if matched_item is not None:
+        #     print("FOUND")
+        #     print()
+        #     set_params['csv_raw_result'] = matched_item
+        #     if matched_item.get('doi') and (isinstance(matched_item['doi'], str)):
+        #         set_params['doi'] = matched_item['doi']
+        #
+        #     doc_updated = True
+        #
+        # try:
+        #     col.find_one_and_update(
+        #         {"_id": doc['_id']},
+        #         {
+        #             "$set": set_params,
+        #         }
+        #     )
+        # except Exception as e:
+        #     print('matched_item')
+        #     pprint(matched_item)
+        #     print(e)
+        #     raise e
 
 def foo(mongo_db, num_cores=4):
     for col_name in mongo_db.collection_names():
@@ -646,6 +652,7 @@ def foo(mongo_db, num_cores=4):
         #     continue
         if col_name not in PAPER_COLLECTIONS:
             continue
+        print('col_name', col_name)
         col = mongo_db[col_name]
         query = col.find(
             {
@@ -678,19 +685,38 @@ def foo(mongo_db, num_cores=4):
 
 def bar(mongo_db, num_cores=1):
     for col_name in mongo_db.collection_names():
-        # if col_name != 'CORD_noncomm_use_subset':
+        # if col_name != 'CORD_custom_license':
         #     continue
         if col_name not in PAPER_COLLECTIONS:
             continue
+        print('col_name', col_name)
         col = mongo_db[col_name]
         query = col.find(
             {
-                "tried_csv_doi" : { "$exists" : True },
+                "tried_csv_doi" : { "$exists" : False },
                 "doi" : { "$exists" : False }
             },
             {
                 '_id': True
             }
+        )
+        # used for cluster to avoid duplication
+        query = col.aggregate(
+            [
+                {
+                    '$match': {
+                        "tried_csv_doi" : { "$exists" : False },
+                        "doi" : { "$exists" : False }
+                    }
+                },
+                {
+                    '$sample': {'size': int(query.count()/4)}
+                },
+                {
+                    '$project': {'_id': True}
+                },
+            ],
+            allowDiskUse=True
         )
         all_tasks = list(query)
         for task in all_tasks:
@@ -720,4 +746,4 @@ if __name__ == '__main__':
 
     # foo(db, num_cores=8)
 
-    bar(db, num_cores=8)
+    bar(db, num_cores=4)
