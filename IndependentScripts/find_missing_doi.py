@@ -7,8 +7,6 @@ import glob
 from pprint import pprint
 import re
 from datetime import datetime
-import difflib
-import Levenshtein
 import collections
 import numpy as np
 from statsmodels.stats.weightstats import DescrStatsW
@@ -16,9 +14,9 @@ import seaborn as sns
 import multiprocessing as mp
 import pandas as pd
 
-from common_utils import get_mongo_db
-
-# TODO: need a num from stas here
+from common_utils import get_mongo_db, parse_date, parse_names, query_crossref, text_similarity_by_char
+from common_utils import LEAST_TITLE_LEN, FIVE_PERCENT_TITLE_LEN, LEAST_TITLE_SIMILARITY, IGNORE_BEGIN_END_TITLE_SIMILARITY
+from common_utils import LEAST_ABS_LEN, FIVE_PERCENT_ABS_LEN, LEAST_ABS_SIMILARITY, IGNORE_BEGIN_END_ABS_SIMILARITY
 
 PAPER_COLLECTIONS = {
     'CORD_biorxiv_medrxiv',
@@ -26,47 +24,7 @@ PAPER_COLLECTIONS = {
     'CORD_custom_license',
     'CORD_noncomm_use_subset',
 }
-# title len stat shows that
-# mean = 98.1516258677384
-# std = 37.430021136179725
-# percentile:
-# 0.00      0
-# 0.01     16
-# 0.02     25
-# 0.03     31
-# 0.04     36
-# 0.05     39
-# 0.10     51
-# 0.25     72
-# 0.50     97
-# 0.75    121
-# 0.95    163
-# 0.97    174
-# 0.99    194
-LEAST_TITLE_LEN = 16
-FIVE_PERCENT_TITLE_LEN = 39
-AVG_TITLE_LEN = 97
-LEAST_TITLE_SIMILARITY = 0.90
-IGNORE_BEGIN_END_SIMILARITY = 0.75
-# abstract len stat shows that
-# mean = 1544.1819507148232
-# std = 1116.3547477100615
-# percentile:
-# 0.00       1
-# 0.01     132
-# 0.02     234
-# 0.03     316
-# 0.04     360
-# 0.05     414
-# 0.10     676
-# 0.25    1020
-# 0.50    1394
-# 0.75    1800
-# 0.95    2927
-# 0.97    3614
-# 0.99    5909
-LEAST_ABS_LEN = 132
-LEAST_ABS_SIMILARITY = 0.90
+
 
 #######################################
 # functions for stats
@@ -84,18 +42,39 @@ def doi_existence_stat(mongo_db):
         })
         query_w_crossref_tried = col.find({'tried_crossref_doi': True})
         query_w_csv_tried = col.find({'tried_csv_doi': True})
+
+        query_wo_doi_no_cr_csv = col.find({
+            'doi': {'$exists': False},
+            'crossref_raw_result': {'$exists': False},
+            'csv_raw_result': {'$exists': False},
+        })
         query_wo_doi_title_empty = col.find({
             'doi': {'$exists': False},
             'metadata': {'$exists': True},
             '$where': 'this.metadata.title.length == 0',
         })
+        query_wo_doi_abs_empty = col.find({
+            'doi': {'$exists': False},
+            'abstract': {'$exists': True},
+            '$where': 'this.abstract.length == 0',
+        })
+        query_wo_doi_title_abs_empty = col.find({
+            'doi': {'$exists': False},
+            'metadata': {'$exists': True},
+            'abstract': {'$exists': True},
+            '$where': 'this.metadata.title.length == 0 & this.abstract.length == 0',
+        })
+
         print('col_name', col_name)
         print('col.count()', col.count())
         print('query_w_doi', query_w_doi.count())
         print('query_w_doi_len_gt_0', query_w_doi_len_gt_0.count())
         print('query_w_crossref_tried', query_w_crossref_tried.count())
         print('query_w_csv_tried', query_w_csv_tried.count())
+        print('query_wo_doi_no_cr_csv', query_wo_doi_no_cr_csv.count())
         print('query_wo_doi_title_empty', query_wo_doi_title_empty.count())
+        print('query_wo_doi_abs_empty', query_wo_doi_abs_empty.count())
+        print('query_wo_doi_title_abs_empty', query_wo_doi_title_abs_empty.count())
         print()
 
 
@@ -197,6 +176,296 @@ def abs_len_stat(mongo_db):
 
     return len_counter
 
+
+def check_doc_wo_doi(mongo_db):
+    for col_name in mongo_db.collection_names():
+        if col_name not in PAPER_COLLECTIONS:
+            continue
+        print('col_name', col_name)
+        col = mongo_db[col_name]
+        query = col.find({
+            'doi': {'$exists': False},
+            'crossref_raw_result': {'$exists': False},
+            'csv_raw_result': {'$exists': False},
+        })
+
+        print('len(query)', query.count())
+        info_counter = collections.Counter()
+        for doc in query:
+            # get metadata
+            metadata = None
+            if ('metadata' in doc):
+                metadata = doc['metadata']
+
+            # get title
+            title = None
+            raw_title = None
+            if metadata is not None:
+                if ('title' in metadata
+                        and isinstance(metadata['title'], str)
+                        and len(metadata['title'].strip()) > 0
+                ):
+                    raw_title = metadata['title']
+                    title = clean_title(raw_title)
+
+            # get abstract
+            abstract = None
+            if 'abstract' in doc and len(doc['abstract']) > 0:
+                abstract = ''
+                for fragment in doc['abstract']:
+                    if ('text' in fragment
+                        and isinstance(fragment['text'], str)
+                        and len(fragment['text']) > 0
+                    ):
+                        abstract += fragment['text'].strip() + ' '
+
+                abstract = abstract.strip()
+                if len(abstract) == 0:
+                    abstract = None
+
+            info_counter['all'] += 1
+            if raw_title is not None or abstract is not None:
+                info_counter['w_title_or_abs'] += 1
+                if raw_title is not None:
+                    info_counter['w_title'] += 1
+                    print('raw_title', raw_title)
+                if abstract is not None:
+                    info_counter['w_abs'] += 1
+                    print('abstract', abstract)
+                print()
+
+#######################################
+# functions for post processing
+#######################################
+
+def add_useful_fields(mongo_db):
+    for col_name in mongo_db.collection_names():
+        # if col_name != 'CORD_custom_license':
+        #     continue
+        if col_name not in PAPER_COLLECTIONS:
+            continue
+        print('col_name', col_name)
+        col = mongo_db[col_name]
+
+        # interpret csv_raw_result
+        query = col.find(
+            {
+                "csv_raw_result" : { "$exists" : True },
+            },
+        )
+        query = list(query)
+        print('len(query) csv_raw_result', len(query))
+        for doc in query:
+            set_params = {}
+            # pmcid
+            if ('pmcid' in doc['csv_raw_result']
+                and isinstance(doc['csv_raw_result']['pmcid'], str)
+                and len(doc['csv_raw_result']['pmcid'].strip()) > 0
+            ):
+                set_params['pmcid'] = doc['csv_raw_result']['pmcid'].strip()
+
+            # pubmed_id
+            if ('pubmed_id' in doc['csv_raw_result']
+                and isinstance(doc['csv_raw_result']['pubmed_id'], str)
+                and len(doc['csv_raw_result']['pubmed_id'].strip()) > 0
+            ):
+                set_params['pubmed_id'] = doc['csv_raw_result']['pubmed_id'].strip()
+
+            # pubmed_id
+            if ('Microsoft Academic Paper ID' in doc['csv_raw_result']
+                and isinstance(doc['csv_raw_result']['Microsoft Academic Paper ID'], str)
+                and len(doc['csv_raw_result']['Microsoft Academic Paper ID'].strip()) > 0
+            ):
+                set_params['microsoft_academic_paper_id'] = doc['csv_raw_result']['Microsoft Academic Paper ID'].strip()
+
+            # journal_name
+            if ('journal' in doc['csv_raw_result']
+                and isinstance(doc['csv_raw_result']['journal'], str)
+                and len(doc['csv_raw_result']['journal'].strip()) > 0
+            ):
+                set_params['journal_name'] = doc['csv_raw_result']['journal'].strip()
+
+            # publish_date
+            if ('publish_time' in doc['csv_raw_result']
+                and isinstance(doc['csv_raw_result']['publish_time'], str)
+                and len(doc['csv_raw_result']['publish_time'].strip()) > 0
+            ):
+                set_params['publish_date'] = parse_date(doc['csv_raw_result']['publish_time'].strip())
+
+            # update doc
+            if len(set_params) > 0:
+                try:
+                    col.find_one_and_update(
+                        {"_id": doc['_id']},
+                        {
+                            "$set": set_params,
+                        }
+                    )
+                except Exception as e:
+                    print('doc _id', doc['_id'])
+                    print('set_params', set_params)
+                    print(e)
+                    raise e
+
+        # to validate crossref_raw_result and cr_raw_result with each other
+        # largely the same
+        # some of the doi's are different so I manually checked them
+        # then I realized that's doi's from publisher website and preprint
+        # websites so both are correct
+
+        # interpret crossref_raw_result
+        query = col.find(
+            {
+                "crossref_raw_result" : { "$exists" : True },
+            },
+        )
+        query = list(query)
+        print('len(query) crossref_raw_result', len(query))
+        for doc in query:
+            set_params = {}
+            # journal_name
+            journal_name = None
+            if (journal_name is None
+                and 'container-title' in doc['crossref_raw_result']
+                and isinstance(doc['crossref_raw_result']['container-title'], list)
+                and len(doc['crossref_raw_result']['container-title']) == 1
+            ):
+                journal_name = doc['crossref_raw_result']['container-title'][0]
+            if (journal_name is None
+                and 'short-container-title' in doc['crossref_raw_result']
+                and isinstance(doc['crossref_raw_result']['short-container-title'], list)
+                and len(doc['crossref_raw_result']['short-container-title']) == 1
+            ):
+                journal_name = doc['crossref_raw_result']['short-container-title'][0]
+            if journal_name is not None:
+                set_params['journal_name'] = journal_name
+
+            # ISSN
+            if ('ISSN' in doc['crossref_raw_result']
+                and isinstance(doc['crossref_raw_result']['ISSN'], list)
+                and len(doc['crossref_raw_result']['ISSN']) == 1
+            ):
+                set_params['ISSN'] = doc['crossref_raw_result']['ISSN'][0]
+
+            # publish_date
+            publish_date = None
+            if (publish_date is None
+                and 'issued' in doc['crossref_raw_result']
+                and 'date-parts' in doc['crossref_raw_result']['issued']
+                and isinstance(doc['crossref_raw_result']['issued']['date-parts'], list)
+                and len(doc['crossref_raw_result']['issued']['date-parts']) == 1
+                and len(doc['crossref_raw_result']['issued']['date-parts'][0]) > 0
+            ):
+                publish_date = doc['crossref_raw_result']['issued']['date-parts'][0]
+            if (publish_date is None
+                and 'published-online' in doc['crossref_raw_result']
+                and 'date-parts' in doc['crossref_raw_result']['published-online']
+                and isinstance(doc['crossref_raw_result']['published-online']['date-parts'], list)
+                and len(doc['crossref_raw_result']['published-online']['date-parts']) == 1
+                and len(doc['crossref_raw_result']['published-online']['date-parts'][0]) > 0
+            ):
+                publish_date = doc['crossref_raw_result']['published-online']['date-parts'][0]
+            if (publish_date is None
+                and 'published-print' in doc['crossref_raw_result']
+                and 'date-parts' in doc['crossref_raw_result']['published-print']
+                and isinstance(doc['crossref_raw_result']['published-print']['date-parts'], list)
+                and len(doc['crossref_raw_result']['published-print']['date-parts']) == 1
+                and len(doc['crossref_raw_result']['published-print']['date-parts'][0]) > 0
+            ):
+                publish_date = doc['crossref_raw_result']['published-print']['date-parts'][0]
+            if publish_date is not None:
+                set_params['publish_date'] = publish_date
+
+            # reference
+            if ('reference' in doc['crossref_raw_result']
+                and isinstance(doc['crossref_raw_result']['reference'], list)
+                and len(doc['crossref_raw_result']['reference']) > 0
+            ):
+                crossref_reference = []
+                for ref in doc['crossref_raw_result']['reference']:
+                    if ('DOI' in ref
+                        and isinstance(ref['DOI'], str)
+                        and len(ref['DOI']) > 0
+                    ):
+                        crossref_reference.append(ref['DOI'])
+                if len(crossref_reference) > 0:
+                    set_params['crossref_reference'] = crossref_reference
+
+            # update doc
+            if len(set_params) > 0:
+                try:
+                    col.find_one_and_update(
+                        {"_id": doc['_id']},
+                        {
+                            "$set": set_params,
+                        }
+                    )
+                except Exception as e:
+                    print('doc _id', doc['_id'])
+                    print('set_params', set_params)
+                    print(e)
+                    raise e
+
+
+def assign_suggested_doi(mongo_db):
+    for col_name in mongo_db.collection_names():
+        # if col_name != 'CORD_custom_license':
+        #     continue
+        if col_name not in PAPER_COLLECTIONS:
+            continue
+        print('col_name', col_name)
+        col = mongo_db[col_name]
+
+        query = col.find({})
+        for i, doc in enumerate(query):
+            if i%1000 == 0:
+                print('{}th doc updating'.format(i))
+            # # comment out this if hash strategy is changed
+            # if 'suggested_id' in doc:
+            #     continue
+            suggested_id = None
+            if 'doi' in doc and len(doc['doi']) > 0:
+                suggested_id = {
+                    'id': doc['doi'],
+                    'source': 'doi',
+                }
+            elif 'pubmed_id' in doc and len(doc['pubmed_id']) > 0:
+                suggested_id = {
+                    'id': doc['pubmed_id'],
+                    'source': 'pubmed_id',
+                }
+            elif 'pmcid' in doc and len(doc['pmcid']) > 0 :
+                suggested_id = {
+                    'id': doc['pmcid'],
+                    'source': 'pmcid',
+                }
+            elif 'microsoft_academic_paper_id' in doc and len(doc['microsoft_academic_paper_id']) > 0:
+                suggested_id = {
+                    'id': doc['microsoft_academic_paper_id'],
+                    'source': 'microsoft_academic_paper_id',
+                }
+            else:
+                suggested_id = {
+                    'id': hash(str(doc)),
+                    'source': 'hash(str(doc))',
+                }
+            if suggested_id is not None:
+                try:
+                    col.find_one_and_update(
+                        {"_id": doc['_id']},
+                        {
+                            "$set": {
+                                'suggested_id': suggested_id,
+                            },
+                        }
+                    )
+                except Exception as e:
+                    print('doc _id', doc['_id'])
+                    print('suggested_id', suggested_id)
+                    print(e)
+                    raise e
+
+
 #######################################
 # functions for doi searching task
 #######################################
@@ -242,52 +511,23 @@ def correct_pd_dict(input_dict):
 
     return output_dict
 
-def text_similarity_by_char(text_1,
-                            text_2,
-                            quick_mode=False,
-                            enable_ignore_begin_end=False,
-                            ignore_begin_end_text_len=FIVE_PERCENT_TITLE_LEN,
-                            ignore_begin_end_similarity=IGNORE_BEGIN_END_SIMILARITY):
-    """
-    calculate similarity by comparing char difference
 
-    :param text_1:
-    :param text_2:
-    :return:
-    """
+def compare_author_names(name_list_1, name_list_2):
+    all_first_names_1 = [x['last'] for x in name_list_1]
+    all_first_names_1 = list(filter(lambda x: x is not None, all_first_names_1))
+    all_first_names_1 = [x.strip() for x in all_first_names_1]
+    all_first_names_1 = set(filter(lambda x: len(x)>=2, all_first_names_1))
 
-    ref_len_ = max(float(len(text_1)), float(len(text_2)), 1.0)
-    max(float(len(text_2)), 1.0)
-    # find the same strings
-    if not quick_mode:
-        same_char = difflib.SequenceMatcher(None, text_1, text_2).get_matching_blocks()
-        same_char = list(filter(lambda x: x.size > 0, same_char))
-        same_char_1 = sum(
-            [tmp_block.size for tmp_block in same_char]
-        ) / float(max(len(text_1), len(text_2), 1.0))
-        same_char_2 = 0
-        if enable_ignore_begin_end and len(same_char) > 0:
-            text_1 = text_1[same_char[0].a: same_char[-1].a + same_char[-1].size]
-            text_2 = text_2[same_char[0].b: same_char[-1].b + same_char[-1].size]
-            if (len(text_1) > ignore_begin_end_text_len
-                and len(text_2) > ignore_begin_end_text_len
-                and len(text_1)/max(len(text_1), 1.0) > ignore_begin_end_similarity
-                and len(text_2)/max(len(text_2), 1.0) > ignore_begin_end_similarity
-            ):
-                same_char_2 = sum(
-                    [tmp_block.size for tmp_block in same_char]
-                ) / float(max(len(text_1), len(text_2), 1.0))
-        same_char_ratio = max(same_char_1, same_char_2)
-    # find the different strings
-    diff_char_ratio = 1 - Levenshtein.distance(text_1, text_2) / float(
-        max(min(len(text_1), len(text_2)), 1.0))
+    all_first_names_2 = [x['last'] for x in name_list_2]
+    all_first_names_2 = list(filter(lambda x: x is not None, all_first_names_2))
+    all_first_names_2 = [x.strip() for x in all_first_names_2]
+    all_first_names_2 = set(filter(lambda x: len(x)>=2, all_first_names_2))
 
-    if not quick_mode:
-        similarity = (same_char_ratio + diff_char_ratio) / 2.0
-    else:
-        similarity = diff_char_ratio
-    # print(text_1, text_2, same_char, diff_char, similarity, maxlarity, answer_simis)
-    return similarity
+    similarity = len(all_first_names_1&all_first_names_2)/max(
+        len(all_first_names_1), len(all_first_names_2), 1
+    )
+    return similarity>0.6
+
 
 def doi_match_a_batch_by_crossref(task_batch):
     mongo_db = get_mongo_db('../config.json')
@@ -308,110 +548,113 @@ def doi_match_a_batch_by_crossref(task_batch):
         metadata = None
         if ('metadata' in doc):
             metadata = doc['metadata']
-        else:
-            # let's supporse metadata is always used first
-            # TODO: we can also use abstract when metadata is not available
-            continue
-
 
         # get title
         title = None
         raw_title = None
         if metadata is not None:
-            if not ('title' in metadata
+            if ('title' in metadata
                 and isinstance(metadata['title'], str)
                 and len(metadata['title'].strip()) > 0
             ):
-                # doc w/o is minor part let's ignore them first
-                # TODO: we can also use abstract when metadata is not available
-                continue
-            raw_title = metadata['title']
-            print('raw_title', raw_title)
-            title = clean_title(raw_title)
-
+                raw_title = metadata['title']
+                title = clean_title(raw_title)
 
         # get author
         author_names = None
         if metadata is not None:
-            try:
-                author_names = ",".join([a['last'] for a in metadata['authors']])
-            except KeyError:
+            author_names = metadata.get('authors')
+            if not (isinstance(author_names, list) and len(author_names) > 0):
                 author_names = None
 
-        # query cross_ref
-        query_url = 'https://api.crossref.org/works'
-        query_params = {
-            'sort': 'relevance',
-            'order': 'desc',
-        }
+        # get abstract
+        abstract = None
+        if 'abstract' in doc and len(doc['abstract']) > 0:
+            abstract = ''
+            for fragment in doc['abstract']:
+                if ('text' in fragment
+                    and isinstance(fragment['text'], str)
+                    and len(fragment['text']) > 0
+                ):
+                    abstract += fragment['text'].strip() + ' '
+
+            abstract = abstract.strip()
+            if len(abstract) == 0:
+                abstract = None
+
+        # query crossref
+        crossref_results = []
         if title:
             # after some experiments, we use pass the query value in plain str rather than html str
             # therefore, use title instead of urllib.parse.quote_plus(title)
-            query_params['query.bibliographic'] = title
-        # TODO: might need to double check if exact title matching be perfect (author might be different?)
-        # TODO: might be wrong here need to clean db when only author info is used to retrieve data
-        elif author_names:
-            query_params['query.bibliographic'] = author_names
-        # TODO: might also use email to search?
+            query_params = {
+                'sort': 'relevance',
+                'order': 'desc',
+                'query.bibliographic': title,
+            }
+            query_results = query_crossref(query_params)
+            if query_results is not None:
+                crossref_results.extend(query_results)
 
-        try:
-            cross_ref_results = requests.get(
-                query_url,
-                params=query_params,
-            )
-        except:
-            print('request to cross_ref failed!')
-            continue
-        try:
-            cross_ref_results = cross_ref_results.json()
-        except Exception as e:
-            print('query result cannot be jsonified!')
-            print('cross_ref_results.text', cross_ref_results.text)
-            print('cross_ref_results.status_code', cross_ref_results.status_code)
-            print('cross_ref_results.reason', cross_ref_results.reason)
-            print()
-            continue
+        if author_names:
+            query_params = {
+                'sort': 'relevance',
+                'order': 'desc',
+                'query.bibliographic': ', '.join([x['last'] for x in author_names]),
+            }
+            query_results = query_crossref(query_params)
+            if query_results is not None:
+                crossref_results.extend(query_results)
 
-        # filter out empty query results
-        if not ('message' in cross_ref_results
-            and 'items' in cross_ref_results['message']
-            and isinstance(cross_ref_results['message']['items'], list)
-            and len(cross_ref_results['message']['items']) > 0
-        ):
-            print('EMPTY RESULT')
-            pprint(cross_ref_results)
-            print()
-            continue
-        else:
-            cross_ref_results = cross_ref_results['message']['items']
+        # TODO: might need to double check if exact title matching be perfect (also, author might be different?)
 
-        # filter out query results without title
-        # TODO: maybe abtract is available
-        #  use item['abstract']
-        cross_ref_results = list(filter(
+        # filter out query results without DOI
+        crossref_results = list(filter(
             lambda x: (
+                'DOI' in x
+                and isinstance(x['DOI'], str)
+                and len(x['DOI']) > 0
+            ),
+            crossref_results
+        ))
+
+        # filter out query results without title or abstract
+        crossref_results = list(filter(
+            lambda x: (
+                (
                     'title' in x
                     and isinstance(x['title'], list)
                     and len(x['title']) > 0
+                ) or (
+                    'abstract' in x
+                    and isinstance(x['abstract'], str)
+                    and len(x['abstract']) > 0
+                )
             ),
-            cross_ref_results
+            crossref_results
         ))
-        # exit()
-
-        # print('title', title)
-        # print("metadata['title']", metadata['title'])
-        # print('author_names', author_names)
-        # pprint(r.json())
-        # exit()
 
         # match by title directly
         matched_item = None
-        if matched_item is None:
-            for item in cross_ref_results:
+        matched_candidates = []
+
+        if title is not None and matched_item is None:
+            for item in crossref_results:
+                if not ('title' in item
+                    and isinstance(item['title'], list)
+                    and len(item['title']) > 0
+                ):
+                    continue
                 if len(item['title']) != 1:
-                    print("len(item['title'])", len(item['title']))
+                    print("len(item['title']) != 1", len(item['title']))
                 cr_title = clean_title(item['title'][0])
-                similarity = text_similarity_by_char(cr_title, title)
+                similarity = text_similarity_by_char(
+                    cr_title,
+                    title,
+                    enable_ignore_begin_end=True,
+                    ignore_begin_end_text_len=FIVE_PERCENT_TITLE_LEN,
+                    ignore_begin_end_similarity=IGNORE_BEGIN_END_TITLE_SIMILARITY,
+                )
                 if (len(cr_title) > LEAST_TITLE_LEN
                     and len(title) > LEAST_TITLE_LEN
                     and similarity > LEAST_TITLE_SIMILARITY):
@@ -419,62 +662,122 @@ def doi_match_a_batch_by_crossref(task_batch):
                     print('title', title)
                     print("cr_title", cr_title)
                     print('similarity', similarity)
+                    print()
                     matched_item = item
                     break
+                elif (len(cr_title) > LEAST_TITLE_LEN
+                    and len(title) > LEAST_TITLE_LEN
+                    and similarity > 0.5):
+                    matched_candidates.insert(0, item)
 
-                # if cr_title == title:
-                #     matched_item = item
-                #     break
+        # match by abstract
+        if abstract is not None and matched_item is None:
+            for item in crossref_results:
+                if not ('abstract' in item
+                    and isinstance(item['abstract'], str)
+                    and len(item['abstract']) > 0
+                ):
+                    continue
+                cr_abstract = item['abstract']
+                similarity = text_similarity_by_char(
+                    cr_abstract,
+                    abstract,
+                    enable_ignore_begin_end=True,
+                    ignore_begin_end_text_len=FIVE_PERCENT_ABS_LEN,
+                    ignore_begin_end_similarity=IGNORE_BEGIN_END_ABS_SIMILARITY,
+                )
+                if (len(cr_abstract) > LEAST_ABS_LEN
+                    and len(abstract) > LEAST_ABS_LEN
+                    and similarity > LEAST_ABS_SIMILARITY):
+                    print('abstract: ', abstract)
+                    print("cr_abstract", cr_abstract)
+                    print('similarity', similarity)
+                    print()
+                    matched_item = item
+                    break
+                elif (len(cr_abstract) > LEAST_ABS_LEN
+                    and len(abstract) > LEAST_ABS_LEN
+                    and similarity > 0.5):
+                    matched_candidates.insert(0, item)
 
-        # # match by revised title
-        # if matched_item is None:
-        #     title = re.sub(' [0-9] ', ' ', title)
-        #     for item in cross_ref_results:
-        #         cr_title = item['title'][0]
-        #         if cr_title == title:
-        #             matched_item = item
-        #             break
+        if (matched_item is None and len(matched_candidates) > 0 and author_names is not None):
+            # match by author
+            for candidate in matched_candidates:
+                if not ('author' in candidate
+                    and isinstance(candidate['author'], list)
+                    and len(candidate['author']) > 0
+                ) :
+                    continue
+                names_parsed = parse_names(candidate['author'])
+                name_cmp_result = compare_author_names(author_names, names_parsed)
+                print('raw_title: ', raw_title)
+                print("candidate['title']", candidate.get('title'))
+                print('abstract', abstract)
+                print("candidate['abstract']", candidate.get('abstract'))
+                print('author_names', [{'first': x['first'], 'last': x['last']} for x in author_names])
+                print("candidate['author']", candidate.get('author'))
+                print('name_cmp_result', name_cmp_result)
+                print()
+                if name_cmp_result:
+                    matched_item = candidate
+                    break
 
+        if matched_item is None and len(matched_candidates) == 0:
+            print('no similar and no candidates!')
+            print('raw_title: ', raw_title)
+            print('abstract', abstract)
+            if author_names:
+                print('author_names', [{'first': x['first'], 'last': x['last']} for x in author_names])
+            else:
+                print('author_names', author_names)
+            print()
 
-        # update doi found
+        # update db
+        set_params = {
+            "tried_crossref_doi": True,
+            'last_updated': datetime.now(),
+        }
         if matched_item is not None:
             print("FOUND")
             print()
-            col.find_one_and_update(
-                {"_id": doc['_id']},
-                {
-                    "$set": {
-                        "doi": matched_item['DOI'],
-                        'tried_crossref_doi': True,
-                        'crossref_raw_result': matched_item,
-                        'last_updated': datetime.now(),
-                    }
-                }
-            )
-            doc_updated = True
-        # else:
-        #     print('query_params', query_params)
-        #     print('\n'.join([x['title'][0] for x in cross_ref_results]))
+            set_params['crossref_raw_result'] = matched_item
+            if (matched_item.get('DOI')
+                and isinstance(matched_item['DOI'], str)
+                and len(matched_item['DOI'].strip()) > 0
+            ):
+                set_params['doi'] = matched_item['DOI'].strip()
 
-        # mark tried even if doi is not found but searching is completed
-        if not doc_updated:
+            doc_updated = True
+
+        try:
             col.find_one_and_update(
                 {"_id": doc['_id']},
                 {
-                    "$set": {
-                        "tried_crossref_doi": True,
-                        'last_updated': datetime.now(),
-                    }
+                    "$set": set_params,
                 }
             )
+        except Exception as e:
+            print('matched_item')
+            pprint(matched_item)
+            print(e)
+            raise e
+
 
 def doi_match_a_batch_by_csv(task_batch):
     mongo_db = get_mongo_db('../config.json')
-    csv_data = pd.read_csv('../rsc/metadata.csv')
+    csv_data = pd.read_csv(
+        '../rsc/metadata.csv',
+        dtype={
+            'pubmed_id': str,
+            'pmcid': str,
+            'publish_time': str,
+            'Microsoft Academic Paper ID': str,
+        }
+    )
     csv_data = csv_data.fillna('')
     csv_data['title'] = csv_data['title'].str.lower()
     for i, task in enumerate(task_batch):
-        if i % 100 == 0:
+        if i % 10 == 0:
             print('thread', threading.currentThread().getName())
             print('processing the {}th out of {}'.format(i, len(task_batch)))
         col = mongo_db[task['col_name']]
@@ -490,11 +793,6 @@ def doi_match_a_batch_by_csv(task_batch):
         metadata = None
         if ('metadata' in doc):
             metadata = doc['metadata']
-        else:
-            # let's supporse metadata is always used first
-            # TODO: we can also use abstract when metadata is not available
-            continue
-
 
         # get title
         title = None
@@ -507,18 +805,12 @@ def doi_match_a_batch_by_csv(task_batch):
                 raw_title = metadata['title']
                 # print('raw_title', raw_title)
                 title = clean_title(raw_title)
-            # else:
-            #     # doc w/o is minor part let's ignore them first
-            #     # TODO: we can also use abstract when metadata is not available
-            #     continue
-
 
         # get author
         author_names = None
         if metadata is not None:
-            try:
-                author_names = ",".join([a['last'] for a in metadata['authors']])
-            except KeyError:
+            author_names = metadata.get('authors')
+            if not (isinstance(author_names, list) and len(author_names) > 0):
                 author_names = None
 
         # get abstract
@@ -538,6 +830,7 @@ def doi_match_a_batch_by_csv(task_batch):
 
         # query csv_data
         matched_item = None
+        matched_candidates = []
 
         # match by title
         if title is not None and matched_item is None:
@@ -545,7 +838,6 @@ def doi_match_a_batch_by_csv(task_batch):
                 lambda x: text_similarity_by_char(x['title'], title, quick_mode=True),
                 axis=1
             )
-            # sim_csv_data = csv_data[similarity>=2*LEAST_TITLE_SIMILARITY-1]
             sim_csv_data = csv_data[similarity>=0.5]
             if len(sim_csv_data) > 0:
                 similarity = sim_csv_data.apply(
@@ -577,15 +869,16 @@ def doi_match_a_batch_by_csv(task_batch):
                         quick_mode=False,
                         enable_ignore_begin_end=True,
                         ignore_begin_end_text_len=FIVE_PERCENT_TITLE_LEN,
-                        ignore_begin_end_similarity=IGNORE_BEGIN_END_SIMILARITY,
+                        ignore_begin_end_similarity=IGNORE_BEGIN_END_TITLE_SIMILARITY,
                     ),
                     axis=1
                 )
                 sorted_similarity = similarity.sort_values(ascending=False)
                 sorted_data = sim_csv_data.reindex(index=sorted_similarity.index)
                 if (len(title) > LEAST_TITLE_LEN
-                        and len(sorted_data.iloc[0]['title']) > LEAST_TITLE_LEN
-                        and sorted_similarity.iloc[0] > LEAST_TITLE_SIMILARITY):
+                    and len(sorted_data.iloc[0]['title']) > LEAST_TITLE_LEN
+                    and sorted_similarity.iloc[0] > LEAST_TITLE_SIMILARITY
+                ):
                     print('result after ignore_begin_end')
                     print('raw_title: ', raw_title)
                     print('title', title)
@@ -593,6 +886,11 @@ def doi_match_a_batch_by_csv(task_batch):
                     print('similarity', sorted_similarity.iloc[0])
                     print()
                     matched_item = correct_pd_dict(sorted_data.iloc[0].to_dict())
+                elif (len(title) > LEAST_TITLE_LEN
+                    and len(sorted_data.iloc[0]['title']) > LEAST_TITLE_LEN
+                    and sorted_similarity.iloc[0] > 0.5
+                ):
+                    matched_candidates.insert(0, correct_pd_dict(sorted_data.iloc[0].to_dict()))
 
         if abstract is not None and matched_item is None:
             # match by abstract
@@ -600,7 +898,7 @@ def doi_match_a_batch_by_csv(task_batch):
                 lambda x: text_similarity_by_char(x['abstract'], abstract, quick_mode=True),
                 axis=1
             )
-            sim_csv_data = csv_data[similarity>=2*LEAST_ABS_SIMILARITY-1]
+            sim_csv_data = csv_data[similarity>=0.5]
             if len(sim_csv_data) > 0:
                 similarity = sim_csv_data.apply(
                     lambda x: text_similarity_by_char(x['abstract'], abstract, quick_mode=False),
@@ -608,14 +906,79 @@ def doi_match_a_batch_by_csv(task_batch):
                 )
                 sorted_similarity = similarity.sort_values(ascending=False)
                 sorted_data = sim_csv_data.reindex(index=sorted_similarity.index)
+
+                print('abstract', abstract)
+                print("csv_abstract", sorted_data.iloc[0]['abstract'])
+                print('similarity', sorted_similarity.iloc[0])
+                print()
+
                 if (len(abstract) > LEAST_ABS_LEN
-                    and len(sorted_data.iloc[0]['abstract']) > LEAST_TITLE_LEN
-                    and sorted_similarity.iloc[0] > LEAST_ABS_SIMILARITY):
+                    and len(sorted_data.iloc[0]['abstract']) > LEAST_ABS_LEN
+                    and sorted_similarity.iloc[0] > LEAST_ABS_SIMILARITY
+                ):
+                    matched_item = correct_pd_dict(sorted_data.iloc[0].to_dict())
+                elif (len(abstract) > LEAST_ABS_LEN
+                    and len(sorted_data.iloc[0]['abstract']) > LEAST_ABS_LEN
+                    and sorted_similarity.iloc[0] > 0.5
+                ):
+                    matched_candidates.insert(0, correct_pd_dict(sorted_data.iloc[0].to_dict()))
+
+
+            if matched_item is None and len(sim_csv_data) > 0:
+                similarity = sim_csv_data.apply(
+                    lambda x: text_similarity_by_char(
+                        x['abstract'],
+                        abstract,
+                        quick_mode=False,
+                        enable_ignore_begin_end=True,
+                        ignore_begin_end_text_len=FIVE_PERCENT_ABS_LEN,
+                        ignore_begin_end_similarity=IGNORE_BEGIN_END_ABS_SIMILARITY,
+                    ),
+                    axis=1
+                )
+                sorted_similarity = similarity.sort_values(ascending=False)
+                sorted_data = sim_csv_data.reindex(index=sorted_similarity.index)
+
+                if (len(abstract) > LEAST_ABS_LEN
+                    and len(sorted_data.iloc[0]['abstract']) > LEAST_ABS_LEN
+                    and sorted_similarity.iloc[0] > LEAST_ABS_SIMILARITY
+                ):
+                    print('result after ignore_begin_end')
                     print('abstract', abstract)
                     print("csv_abstract", sorted_data.iloc[0]['abstract'])
                     print('similarity', sorted_similarity.iloc[0])
                     print()
                     matched_item = correct_pd_dict(sorted_data.iloc[0].to_dict())
+
+
+        if (matched_item is None and len(matched_candidates) > 0 and author_names is not None):
+            # match by author
+            for candidate in matched_candidates:
+                if not candidate['authors']:
+                    continue
+                names_parsed = parse_names(candidate['authors'])
+                name_cmp_result = compare_author_names(author_names, names_parsed)
+                print('raw_title: ', raw_title)
+                print("candidate['title']", candidate['title'])
+                print('abstract', abstract)
+                print("candidate['abstract']", candidate['abstract'])
+                print('author_names', [{'first': x['first'], 'last': x['last']} for x in author_names])
+                print("candidate['authors']", candidate['authors'])
+                print('name_cmp_result', name_cmp_result)
+                print()
+                if name_cmp_result:
+                    matched_item = candidate
+                    break
+
+        if matched_item is None and len(matched_candidates) == 0:
+            print('no similar and no candidates!')
+            print('raw_title: ', raw_title)
+            print('abstract', abstract)
+            if author_names:
+                print('author_names', [{'first': x['first'], 'last': x['last']} for x in author_names])
+            else:
+                print('author_names', author_names)
+            print()
 
         # update db
         set_params = {
@@ -623,28 +986,31 @@ def doi_match_a_batch_by_csv(task_batch):
             'last_updated': datetime.now(),
         }
 
-        # # update doi found
-        # if matched_item is not None:
-        #     print("FOUND")
-        #     print()
-        #     set_params['csv_raw_result'] = matched_item
-        #     if matched_item.get('doi') and (isinstance(matched_item['doi'], str)):
-        #         set_params['doi'] = matched_item['doi']
-        #
-        #     doc_updated = True
-        #
-        # try:
-        #     col.find_one_and_update(
-        #         {"_id": doc['_id']},
-        #         {
-        #             "$set": set_params,
-        #         }
-        #     )
-        # except Exception as e:
-        #     print('matched_item')
-        #     pprint(matched_item)
-        #     print(e)
-        #     raise e
+        # update doi found
+        if matched_item is not None:
+            print("FOUND")
+            print()
+            set_params['csv_raw_result'] = matched_item
+            if (matched_item.get('doi')
+                and isinstance(matched_item['doi'], str)
+                and len(matched_item['doi'].strip())>0
+            ):
+                set_params['doi'] = matched_item['doi'].strip()
+
+            doc_updated = True
+
+        try:
+            col.find_one_and_update(
+                {"_id": doc['_id']},
+                {
+                    "$set": set_params,
+                }
+            )
+        except Exception as e:
+            print('matched_item')
+            pprint(matched_item)
+            print(e)
+            raise e
 
 def foo(mongo_db, num_cores=4):
     for col_name in mongo_db.collection_names():
@@ -657,12 +1023,32 @@ def foo(mongo_db, num_cores=4):
         query = col.find(
             {
                 "tried_crossref_doi" : { "$exists" : True },
-                "doi" : { "$exists" : False }
+                "doi" : { "$exists" : False },
+                "crossref_raw_result": {"$exists": False},
             },
             {
                 '_id': True
             }
         )
+        # # used for cluster to avoid duplication
+        # query = col.aggregate(
+        #     [
+        #         {
+        #             '$match': {
+        #                 "tried_crossref_doi": {"$exists": True},
+        #                 "doi": {"$exists": False},
+        #                 "crossref_raw_result": {"$exists": False},
+        #             }
+        #         },
+        #         {
+        #             '$sample': {'size': int(query.count()/4)}
+        #         },
+        #         {
+        #             '$project': {'_id': True}
+        #         },
+        #     ],
+        #     allowDiskUse=True
+        # )
         all_tasks = list(query)
         for task in all_tasks:
             task['col_name'] = col_name
@@ -693,8 +1079,9 @@ def bar(mongo_db, num_cores=1):
         col = mongo_db[col_name]
         query = col.find(
             {
-                "tried_csv_doi" : { "$exists" : False },
-                "doi" : { "$exists" : False }
+                "tried_csv_doi": {"$exists": True},
+                "doi": {"$exists": False},
+                "csv_raw_result": {"$exists": False},
             },
             {
                 '_id': True
@@ -705,8 +1092,9 @@ def bar(mongo_db, num_cores=1):
             [
                 {
                     '$match': {
-                        "tried_csv_doi" : { "$exists" : False },
-                        "doi" : { "$exists" : False }
+                        "tried_csv_doi" : { "$exists" : True },
+                        "doi" : { "$exists" : False },
+                        "csv_raw_result" : { "$exists" : False },
                     }
                 },
                 {
@@ -744,6 +1132,12 @@ if __name__ == '__main__':
 
     # doi_existence_stat(db)
 
-    # foo(db, num_cores=8)
+    check_doc_wo_doi(db)
 
-    bar(db, num_cores=4)
+    # add_useful_fields(db)
+
+    # assign_suggested_doi(db)
+
+    # foo(db, num_cores=4)
+
+    # bar(db, num_cores=4)

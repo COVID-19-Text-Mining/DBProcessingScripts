@@ -20,7 +20,10 @@ def crossref_data(doi):
         #Curate metadata for db entry
         cr_metadata = dict()
         cr_metadata['crossref_raw_result'] = response
-        cr_metadata['journal'] = cr_response['publisher'] #Get journal
+        if 'container-title' in cr_response.keys():
+            cr_metadata['journal'] = cr_response['container-title'] #Get journal title
+        elif 'short-container-title' in cr_response.keys():
+            cr_metadata['journal'] = cr_response['short-container-title'] #Get short journal title as alternative 
         cr_metadata['title'] = cr_response['title'] #Get title
         date = cr_response['issued']['date-parts']
         try:
