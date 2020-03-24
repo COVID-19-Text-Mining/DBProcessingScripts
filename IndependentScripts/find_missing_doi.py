@@ -731,8 +731,11 @@ def doi_match_a_batch_by_crossref(task_batch):
             print("FOUND")
             print()
             set_params['crossref_raw_result'] = matched_item
-            if matched_item.get('DOI') and (isinstance(matched_item['DOI'], str)):
-                set_params['doi'] = matched_item['DOI']
+            if (matched_item.get('DOI')
+                and isinstance(matched_item['DOI'], str)
+                and len(matched_item['DOI'].strip()) > 0
+            ):
+                set_params['doi'] = matched_item['DOI'].strip()
 
             doc_updated = True
 
@@ -978,8 +981,11 @@ def doi_match_a_batch_by_csv(task_batch):
             print("FOUND")
             print()
             set_params['csv_raw_result'] = matched_item
-            if matched_item.get('doi') and (isinstance(matched_item['doi'], str)):
-                set_params['doi'] = matched_item['doi']
+            if (matched_item.get('doi')
+                and isinstance(matched_item['doi'], str)
+                and len(matched_item['doi'].strip())>0
+            ):
+                set_params['doi'] = matched_item['doi'].strip()
 
             doc_updated = True
 
@@ -1014,25 +1020,25 @@ def foo(mongo_db, num_cores=4):
                 '_id': True
             }
         )
-        # used for cluster to avoid duplication
-        query = col.aggregate(
-            [
-                {
-                    '$match': {
-                        "tried_crossref_doi": {"$exists": True},
-                        "doi": {"$exists": False},
-                        "crossref_raw_result": {"$exists": False},
-                    }
-                },
-                {
-                    '$sample': {'size': int(query.count()/4)}
-                },
-                {
-                    '$project': {'_id': True}
-                },
-            ],
-            allowDiskUse=True
-        )
+        # # used for cluster to avoid duplication
+        # query = col.aggregate(
+        #     [
+        #         {
+        #             '$match': {
+        #                 "tried_crossref_doi": {"$exists": True},
+        #                 "doi": {"$exists": False},
+        #                 "crossref_raw_result": {"$exists": False},
+        #             }
+        #         },
+        #         {
+        #             '$sample': {'size': int(query.count()/4)}
+        #         },
+        #         {
+        #             '$project': {'_id': True}
+        #         },
+        #     ],
+        #     allowDiskUse=True
+        # )
         all_tasks = list(query)
         for task in all_tasks:
             task['col_name'] = col_name
@@ -1116,8 +1122,8 @@ if __name__ == '__main__':
 
     # doi_existence_stat(db)
 
-    add_useful_fields(db)
+    # add_useful_fields(db)
 
-    # foo(db, num_cores=4)
+    foo(db, num_cores=4)
 
     # bar(db, num_cores=4)
