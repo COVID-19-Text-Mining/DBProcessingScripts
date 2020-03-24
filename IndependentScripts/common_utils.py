@@ -1,10 +1,104 @@
 import json
 from pprint import pprint
-
+import difflib
+import Levenshtein
 import pymongo
 import regex
 from datetime import datetime
 import requests
+
+###########################################
+# text comparison
+###########################################
+# title len stat shows that
+# mean = 98.1516258677384
+# std = 37.430021136179725
+# percentile:
+# 0.00      0
+# 0.01     16
+# 0.02     25
+# 0.03     31
+# 0.04     36
+# 0.05     39
+# 0.10     51
+# 0.25     72
+# 0.50     97
+# 0.75    121
+# 0.95    163
+# 0.97    174
+# 0.99    194
+LEAST_TITLE_LEN = 16
+FIVE_PERCENT_TITLE_LEN = 39
+LEAST_TITLE_SIMILARITY = 0.90
+IGNORE_BEGIN_END_TITLE_SIMILARITY = 0.75
+# abstract len stat shows that
+# mean = 1544.1819507148232
+# std = 1116.3547477100615
+# percentile:
+# 0.00       1
+# 0.01     132
+# 0.02     234
+# 0.03     316
+# 0.04     360
+# 0.05     414
+# 0.10     676
+# 0.25    1020
+# 0.50    1394
+# 0.75    1800
+# 0.95    2927
+# 0.97    3614
+# 0.99    5909
+LEAST_ABS_LEN = 132
+FIVE_PERCENT_ABS_LEN = 414
+LEAST_ABS_SIMILARITY = 0.90
+IGNORE_BEGIN_END_ABS_SIMILARITY = 0.75
+
+def text_similarity_by_char(text_1,
+                            text_2,
+                            quick_mode=False,
+                            enable_ignore_begin_end=False,
+                            ignore_begin_end_text_len=39,
+                            ignore_begin_end_similarity=0.75):
+    """
+    calculate similarity by comparing char difference
+
+    :param text_1:
+    :param text_2:
+    :return:
+    """
+
+    ref_len_ = max(float(len(text_1)), float(len(text_2)), 1.0)
+    max(float(len(text_2)), 1.0)
+    # find the same strings
+    if not quick_mode:
+        same_char = difflib.SequenceMatcher(None, text_1, text_2).get_matching_blocks()
+        same_char = list(filter(lambda x: x.size > 0, same_char))
+        same_char_1 = sum(
+            [tmp_block.size for tmp_block in same_char]
+        ) / float(max(len(text_1), len(text_2), 1.0))
+        same_char_2 = 0
+        if enable_ignore_begin_end and len(same_char) > 0:
+            text_1 = text_1[same_char[0].a: same_char[-1].a + same_char[-1].size]
+            text_2 = text_2[same_char[0].b: same_char[-1].b + same_char[-1].size]
+            if (len(text_1) > ignore_begin_end_text_len
+                and len(text_2) > ignore_begin_end_text_len
+                and len(text_1)/max(len(text_1), 1.0) > ignore_begin_end_similarity
+                and len(text_2)/max(len(text_2), 1.0) > ignore_begin_end_similarity
+            ):
+                same_char_2 = sum(
+                    [tmp_block.size for tmp_block in same_char]
+                ) / float(max(len(text_1), len(text_2), 1.0))
+        same_char_ratio = max(same_char_1, same_char_2)
+    # find the different strings
+    diff_char_ratio = 1 - Levenshtein.distance(text_1, text_2) / float(
+        max(min(len(text_1), len(text_2)), 1.0))
+
+    if not quick_mode:
+        similarity = (same_char_ratio + diff_char_ratio) / 2.0
+    else:
+        similarity = diff_char_ratio
+    # print(text_1, text_2, same_char, diff_char, similarity, maxlarity, answer_simis)
+    return similarity
 
 ###########################################
 # parse web data
@@ -174,6 +268,40 @@ def parse_names_list(name_list):
 # communicate with crossref
 ###########################################
 
+def query_crossref_by_doi(doi, verbose=True):
+    # goal
+    crossref_results = None
+
+    # query crossref
+    query_url = 'https://api.crossref.org/works/{}'.format(doi)
+    try:
+        query_results = requests.get(
+            query_url,
+        )
+    except:
+        print('request to crossref failed!')
+    try:
+        query_results = query_results.json()
+    except Exception as e:
+        print('query result cannot be jsonified!')
+        print('query_results.text', query_results.text)
+        print('query_results.status_code', query_results.status_code)
+        print('query_results.reason', query_results.reason)
+        print()
+
+    # filter out empty query results
+    if ('message' in query_results
+        and isinstance(query_results['message'], dict)
+    ):
+        crossref_results = query_results['message']
+    else:
+        print('EMPTY RESULT')
+        pprint(query_results)
+        print()
+
+    return crossref_results
+
+
 def query_crossref(query_params):
     # goal
     crossref_results = None
@@ -209,6 +337,27 @@ def query_crossref(query_params):
         print()
 
     return crossref_results
+
+###########################################
+# communicate with doi.org
+###########################################
+
+def query_doiorg_by_doi(doi):
+    # goal
+    query_results = None
+    # query doi org
+    query_url = 'http://dx.doi.org/{}'.format(doi)
+    headers = {"accept": "application/x-bibtex"}
+
+    try:
+        query_results = requests.get(
+            query_url,
+            headers=headers
+        )
+    except:
+        print('request to doi.org failed!')
+
+    return query_results
 
 
 ###########################################
