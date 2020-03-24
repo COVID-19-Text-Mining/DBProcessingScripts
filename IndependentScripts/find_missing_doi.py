@@ -232,69 +232,72 @@ def add_useful_fields(mongo_db):
         print('col_name', col_name)
         col = mongo_db[col_name]
 
-        # # interpret csv_raw_result
-        # query = col.find(
-        #     {
-        #         "csv_raw_result" : { "$exists" : True },
-        #     },
-        # )
-        # query = list(query)
-        # print('len(query) csv_raw_result', len(query))
-        # for doc in query:
-        #     set_params = {}
-        #     # TODO: type of pubmed_id is wrong currently, need to change from float to str
-        #     #  let's change pmcid and publish_time to str, too
-        #     # pmcid
-        #     if ('pmcid' in doc['csv_raw_result']
-        #         and isinstance(doc['csv_raw_result']['pmcid'], str)
-        #         and len(doc['csv_raw_result']['pmcid'].strip()) > 0
-        #     ):
-        #         set_params['pmcid'] = doc['csv_raw_result']['pmcid'].strip()
-        #
-        #     # pubmed_id
-        #     if ('pubmed_id' in doc['csv_raw_result']
-        #         and isinstance(doc['csv_raw_result']['pubmed_id'], str)
-        #         and len(doc['csv_raw_result']['pubmed_id'].strip()) > 0
-        #     ):
-        #         set_params['pubmed_id'] = doc['csv_raw_result']['pubmed_id'].strip()
-        #
-        #     # pubmed_id
-        #     if ('Microsoft Academic Paper ID' in doc['csv_raw_result']
-        #         and isinstance(doc['csv_raw_result']['Microsoft Academic Paper ID'], str)
-        #         and len(doc['csv_raw_result']['Microsoft Academic Paper ID'].strip()) > 0
-        #     ):
-        #         set_params['microsoft_academic_paper_id'] = doc['csv_raw_result']['Microsoft Academic Paper ID'].strip()
-        #
-        #     # journal_name
-        #     if ('journal' in doc['csv_raw_result']
-        #         and isinstance(doc['csv_raw_result']['journal'], str)
-        #         and len(doc['csv_raw_result']['journal'].strip()) > 0
-        #     ):
-        #         set_params['journal_name'] = doc['csv_raw_result']['journal'].strip()
-        #
-        #     # publish_date
-        #     if ('publish_time' in doc['csv_raw_result']
-        #         and isinstance(doc['csv_raw_result']['publish_time'], str)
-        #         and len(doc['csv_raw_result']['publish_time'].strip()) > 0
-        #     ):
-        #         set_params['publish_date'] = parse_date(doc['csv_raw_result']['publish_time'].strip())
-        #
-        #     # update doc
-        #     if len(set_params) > 0:
-        #         try:
-        #             col.find_one_and_update(
-        #                 {"_id": doc['_id']},
-        #                 {
-        #                     "$set": set_params,
-        #                 }
-        #             )
-        #         except Exception as e:
-        #             print('doc _id', doc['_id'])
-        #             print('set_params', set_params)
-        #             print(e)
-        #             raise e
+        # interpret csv_raw_result
+        query = col.find(
+            {
+                "csv_raw_result" : { "$exists" : True },
+            },
+        )
+        query = list(query)
+        print('len(query) csv_raw_result', len(query))
+        for doc in query:
+            set_params = {}
+            # pmcid
+            if ('pmcid' in doc['csv_raw_result']
+                and isinstance(doc['csv_raw_result']['pmcid'], str)
+                and len(doc['csv_raw_result']['pmcid'].strip()) > 0
+            ):
+                set_params['pmcid'] = doc['csv_raw_result']['pmcid'].strip()
 
-        # TODO: to validate crossref_raw_result and cr_raw_result with each other
+            # pubmed_id
+            if ('pubmed_id' in doc['csv_raw_result']
+                and isinstance(doc['csv_raw_result']['pubmed_id'], str)
+                and len(doc['csv_raw_result']['pubmed_id'].strip()) > 0
+            ):
+                set_params['pubmed_id'] = doc['csv_raw_result']['pubmed_id'].strip()
+
+            # pubmed_id
+            if ('Microsoft Academic Paper ID' in doc['csv_raw_result']
+                and isinstance(doc['csv_raw_result']['Microsoft Academic Paper ID'], str)
+                and len(doc['csv_raw_result']['Microsoft Academic Paper ID'].strip()) > 0
+            ):
+                set_params['microsoft_academic_paper_id'] = doc['csv_raw_result']['Microsoft Academic Paper ID'].strip()
+
+            # journal_name
+            if ('journal' in doc['csv_raw_result']
+                and isinstance(doc['csv_raw_result']['journal'], str)
+                and len(doc['csv_raw_result']['journal'].strip()) > 0
+            ):
+                set_params['journal_name'] = doc['csv_raw_result']['journal'].strip()
+
+            # publish_date
+            if ('publish_time' in doc['csv_raw_result']
+                and isinstance(doc['csv_raw_result']['publish_time'], str)
+                and len(doc['csv_raw_result']['publish_time'].strip()) > 0
+            ):
+                set_params['publish_date'] = parse_date(doc['csv_raw_result']['publish_time'].strip())
+
+            # update doc
+            if len(set_params) > 0:
+                try:
+                    col.find_one_and_update(
+                        {"_id": doc['_id']},
+                        {
+                            "$set": set_params,
+                        }
+                    )
+                except Exception as e:
+                    print('doc _id', doc['_id'])
+                    print('set_params', set_params)
+                    print(e)
+                    raise e
+
+        # to validate crossref_raw_result and cr_raw_result with each other
+        # largely the same
+        # some of the doi's are different so I manually checked them
+        # then I realized that's doi's from publisher website and preprint
+        # websites so both are correct
+
         # interpret crossref_raw_result
         query = col.find(
             {
@@ -385,6 +388,65 @@ def add_useful_fields(mongo_db):
                 except Exception as e:
                     print('doc _id', doc['_id'])
                     print('set_params', set_params)
+                    print(e)
+                    raise e
+
+
+def assign_suggested_doi(mongo_db):
+    for col_name in mongo_db.collection_names():
+        # if col_name != 'CORD_custom_license':
+        #     continue
+        if col_name not in PAPER_COLLECTIONS:
+            continue
+        print('col_name', col_name)
+        col = mongo_db[col_name]
+
+        query = col.find({})
+        for i, doc in enumerate(query):
+            if i%1000 == 0:
+                print('{}th doc updating'.format(i))
+            # # comment out this if hash strategy is changed
+            # if 'suggested_id' in doc:
+            #     continue
+            suggested_id = None
+            if 'doi' in doc and len(doc['doi']) > 0:
+                suggested_id = {
+                    'id': doc['doi'],
+                    'source': 'doi',
+                }
+            elif 'pubmed_id' in doc and len(doc['pubmed_id']) > 0:
+                suggested_id = {
+                    'id': doc['pubmed_id'],
+                    'source': 'pubmed_id',
+                }
+            elif 'pmcid' in doc and len(doc['pmcid']) > 0 :
+                suggested_id = {
+                    'id': doc['pmcid'],
+                    'source': 'pmcid',
+                }
+            elif 'microsoft_academic_paper_id' in doc and len(doc['microsoft_academic_paper_id']) > 0:
+                suggested_id = {
+                    'id': doc['microsoft_academic_paper_id'],
+                    'source': 'microsoft_academic_paper_id',
+                }
+            else:
+                suggested_id = {
+                    'id': hash(str(doc)),
+                    'source': 'hash(str(doc))',
+                }
+            if suggested_id is not None:
+                try:
+                    col.find_one_and_update(
+                        {"_id": doc['_id']},
+                        {
+                            "$set": {
+                                'suggested_id': suggested_id,
+                            },
+                        }
+                    )
+                except Exception as e:
+                    print('doc _id', doc['_id'])
+                    print('suggested_id', suggested_id)
                     print(e)
                     raise e
 
@@ -518,35 +580,17 @@ def doi_match_a_batch_by_crossref(task_batch):
         metadata = None
         if ('metadata' in doc):
             metadata = doc['metadata']
-        else:
-            # let's supporse metadata is always used first
-            # TODO: we can also use abstract when metadata is not available
-            continue
-
 
         # get title
         title = None
         raw_title = None
         if metadata is not None:
-            if not ('title' in metadata
+            if ('title' in metadata
                 and isinstance(metadata['title'], str)
                 and len(metadata['title'].strip()) > 0
             ):
-                # doc w/o is minor part let's ignore them first
-                # TODO: we can also use abstract when metadata is not available
-                continue
-            raw_title = metadata['title']
-            print('raw_title', raw_title)
-            title = clean_title(raw_title)
-
-
-        # # get author
-        # author_names = None
-        # if metadata is not None:
-        #     try:
-        #         author_names = ", ".join([a['last'] for a in metadata['authors']])
-        #     except KeyError:
-        #         author_names = None
+                raw_title = metadata['title']
+                title = clean_title(raw_title)
 
         # get author
         author_names = None
@@ -594,9 +638,7 @@ def doi_match_a_batch_by_crossref(task_batch):
             if query_results is not None:
                 crossref_results.extend(query_results)
 
-        # TODO: might need to double check if exact title matching be perfect (author might be different?)
-        # TODO: might be wrong here need to clean db when only author info is used to retrieve data
-        # # TODO: might also use email to search?
+        # TODO: might need to double check if exact title matching be perfect (also, author might be different?)
 
         # filter out query results without DOI
         crossref_results = list(filter(
@@ -1120,10 +1162,12 @@ if __name__ == '__main__':
     db = get_mongo_db('../config.json')
     print(db.collection_names())
 
-    # doi_existence_stat(db)
+    doi_existence_stat(db)
 
     # add_useful_fields(db)
 
-    foo(db, num_cores=4)
+    # assign_suggested_doi(db)
+
+    # foo(db, num_cores=4)
 
     # bar(db, num_cores=4)
