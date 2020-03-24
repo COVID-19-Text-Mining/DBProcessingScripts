@@ -177,6 +177,63 @@ def abs_len_stat(mongo_db):
     return len_counter
 
 
+def check_doc_wo_doi(mongo_db):
+    for col_name in mongo_db.collection_names():
+        if col_name not in PAPER_COLLECTIONS:
+            continue
+        print('col_name', col_name)
+        col = mongo_db[col_name]
+        query = col.find({
+            'doi': {'$exists': False},
+            'crossref_raw_result': {'$exists': False},
+            'csv_raw_result': {'$exists': False},
+        })
+
+        print('len(query)', query.count())
+        info_counter = collections.Counter()
+        for doc in query:
+            # get metadata
+            metadata = None
+            if ('metadata' in doc):
+                metadata = doc['metadata']
+
+            # get title
+            title = None
+            raw_title = None
+            if metadata is not None:
+                if ('title' in metadata
+                        and isinstance(metadata['title'], str)
+                        and len(metadata['title'].strip()) > 0
+                ):
+                    raw_title = metadata['title']
+                    title = clean_title(raw_title)
+
+            # get abstract
+            abstract = None
+            if 'abstract' in doc and len(doc['abstract']) > 0:
+                abstract = ''
+                for fragment in doc['abstract']:
+                    if ('text' in fragment
+                        and isinstance(fragment['text'], str)
+                        and len(fragment['text']) > 0
+                    ):
+                        abstract += fragment['text'].strip() + ' '
+
+                abstract = abstract.strip()
+                if len(abstract) == 0:
+                    abstract = None
+
+            info_counter['all'] += 1
+            if raw_title is not None or abstract is not None:
+                info_counter['w_title_or_abs'] += 1
+                if raw_title is not None:
+                    info_counter['w_title'] += 1
+                    print('raw_title', raw_title)
+                if abstract is not None:
+                    info_counter['w_abs'] += 1
+                    print('abstract', abstract)
+                print()
+
 #######################################
 # functions for post processing
 #######################################
@@ -1075,10 +1132,12 @@ if __name__ == '__main__':
 
     # doi_existence_stat(db)
 
+    check_doc_wo_doi(db)
+
     # add_useful_fields(db)
 
     # assign_suggested_doi(db)
 
     # foo(db, num_cores=4)
 
-    bar(db, num_cores=4)
+    # bar(db, num_cores=4)
