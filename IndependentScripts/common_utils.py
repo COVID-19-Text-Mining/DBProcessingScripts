@@ -1,10 +1,13 @@
 import json
+from pprint import pprint
+
 import pymongo
 import regex
 from datetime import datetime
+import requests
 
 ###########################################
-# parse time data
+# parse web data
 ###########################################
 PATTERN_DATE_0 =[
     '%m/%d/%Y',
@@ -111,6 +114,102 @@ def parse_date_str(date_str):
                     time_parsed['day'] = int(result['day'])
                 break
     return time_parsed
+
+def parse_names(name_obj):
+    names = []
+    if isinstance(name_obj, str):
+        names = parse_names_str(name_obj)
+    if isinstance(name_obj, list):
+        names = parse_names_list(name_obj)
+    return names
+
+def parse_names_str(name_str):
+    names = []
+    fragments = []
+    name_str = name_str.strip()
+
+    if ';' in name_str:
+        fragments = name_str.split(';')
+    elif (name_str.count(',') > 1
+         or (name_str.count(',')==1 and name_str.count(' ')>2)
+    ):
+        fragments = name_str.split(',')
+    elif (name_str.count(',')==1 and name_str.count(' ')<=2):
+        fragments = [name_str]
+    elif ' ' in name_str:
+        fragments = [name_str]
+    for frag in fragments:
+        tmp_name = None
+        if ',' in frag:
+            pieces = frag.split(',')
+            tmp_name = {
+                'last': pieces[0].strip(),
+                'first': pieces[-1].strip(),
+            }
+        elif ' ' in frag:
+            pieces = frag.split(' ')
+            tmp_name = {
+                'last': pieces[-1].strip(),
+                'first': pieces[0].strip(),
+            }
+        else:
+            tmp_name = {
+                'first': frag.strip(),
+                'last': None
+            }
+        if tmp_name is not None:
+            names.append(tmp_name)
+    return names
+
+def parse_names_list(name_list):
+    names = []
+    for n in name_list:
+        names.append({
+            'first': n.get('given', None),
+            'last': n.get('family', None),
+        })
+    return names
+
+###########################################
+# communicate with crossref
+###########################################
+
+def query_crossref(query_params):
+    # goal
+    crossref_results = None
+
+    # query crossref
+    query_url = 'https://api.crossref.org/works'
+    try:
+        query_results = requests.get(
+            query_url,
+            params=query_params,
+        )
+    except:
+        print('request to crossref failed!')
+    try:
+        query_results = query_results.json()
+    except Exception as e:
+        print('query result cannot be jsonified!')
+        print('query_results.text', query_results.text)
+        print('query_results.status_code', query_results.status_code)
+        print('query_results.reason', query_results.reason)
+        print()
+
+    # filter out empty query results
+    if ('message' in query_results
+        and 'items' in query_results['message']
+        and isinstance(query_results['message']['items'], list)
+        and len(query_results['message']['items']) > 0
+    ):
+        crossref_results = query_results['message']['items']
+    else:
+        print('EMPTY RESULT')
+        pprint(query_results)
+        print()
+
+    return crossref_results
+
 
 ###########################################
 # communicate with mongodb
