@@ -52,7 +52,7 @@ def parse_cord_doc(doc, collection_name):
 	parsed_doc['doi'] = doc['doi'].strip()
 	parsed_doc['origin'] = collection_name
 	parsed_doc['last_updated'] = datetime.datetime.now()
-	parsed_doc['link'] = "https://doi.org/%s"%parsed_doc['Doi']
+	parsed_doc['link'] = "https://doi.org/%s"%parsed_doc['doi']
 
 	try:
 		parsed_doc["journal"] = doc['journal_name']

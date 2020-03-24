@@ -10,6 +10,8 @@ import datetime
 import pymongo
 import os
 import gridfs
+import pathlib
+import logging
 
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly',
     'https://www.googleapis.com/auth/drive.readonly']
@@ -113,8 +115,10 @@ def main():
     # The file token.pickle stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
     # time.
-    if os.path.exists('token.pickle'):
-        with open('token.pickle', 'rb') as token:
+    pathlib.Path(__file__).parent.absolute()
+    token_path = os.path.join(pathlib.Path(__file__).parent.absolute(), 'token.pickle')
+    if os.path.exists(token_path):
+        with open(token_path, 'rb') as token:
             creds = pickle.load(token)
     # If there are no (valid) credentials available, let the user log in.
     if not creds or not creds.valid:
@@ -144,6 +148,7 @@ def main():
             # Print columns A and E, which correspond to indices 0 and 4.
             doc = parse_row(i, row)
             if not doc['row_id'] in present_rows:
+                print("Uploading;")
                 pprint(doc)
                 # service = build('drive', 'v3', credentials=creds)
                 # local_file_dir = '/tmp/{}'.format(doc['file_id'])

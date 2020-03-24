@@ -9,7 +9,7 @@ entries_db = MongoStore(database=os.getenv("COVID_DB"),
                              host=os.getenv("COVID_HOST"),
                              username=os.getenv("COVID_USER"),
                              password=os.getenv("COVID_PASS"),
-                             key="Doi",
+                             key="doi",
                              lu_field="last_updated",
                              lu_type="datetime")
 
@@ -30,8 +30,6 @@ biorxiv_builder = MapBuilder(source=biorxiv_db,
                            	 query=None,
                              store_process_time=False)
 
-print("Scraper_connect_biorxiv_org")
-biorxiv_builder.run()
 
 CORD_collection_names = ['CORD_noncomm_use_subset',
 	'CORD_comm_use_subset',
@@ -60,3 +58,6 @@ for collection in CORD_collection_names:
 for collection, builder in CORD_builders.items():
 	print(collection)
 	builder.run()
+
+print("Scraper_connect_biorxiv_org")
+biorxiv_builder.run()
