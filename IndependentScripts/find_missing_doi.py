@@ -233,6 +233,9 @@ def check_doc_wo_doi(mongo_db):
                     info_counter['w_abs'] += 1
                     print('abstract', abstract)
                 print()
+        print('info_counter')
+        print(info_counter)
+
 
 #######################################
 # functions for post processing
@@ -1130,9 +1133,9 @@ if __name__ == '__main__':
     db = get_mongo_db('../config.json')
     print(db.collection_names())
 
-    # doi_existence_stat(db)
+    doi_existence_stat(db)
 
-    check_doc_wo_doi(db)
+    # check_doc_wo_doi(db)
 
     # add_useful_fields(db)
 
