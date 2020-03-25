@@ -3,6 +3,7 @@ import datetime
 import pymongo
 import os
 from pprint import pprint
+from google_form_doi_check import valid_a_doi
 
 crossref_session = requests.Session()
 def crossref_data(doi):
@@ -66,8 +67,12 @@ db = client[os.getenv("COVID_DB")]
 
 for e in db[collection_name].find({"crossref_raw_result": {"$exists" : False}}):
     print("Searching for metadata for row {}, doi {}".format(e['row_id'], e['doi']))
-    cr_metadata = crossref_data(e['doi'])
-    if cr_metadata is not None:
-        pprint("Found row metadata for row {}".format(e['row_id']))
-        e = {**e, **cr_metadata}
-        db[collection_name].find_one_and_replace({"_id": e['_id']}, e)
+    if valid_a_doi(e['doi'], e):
+    #First validate the doi
+        cr_metadata = crossref_data(e['doi'])
+        if cr_metadata is not None:
+            pprint("Found row metadata for row {}".format(e['row_id']))
+            e = {**e, **cr_metadata}
+            db[collection_name].find_one_and_replace({"_id": e['_id']}, e)
+    else:
+        print("doi invalid!")

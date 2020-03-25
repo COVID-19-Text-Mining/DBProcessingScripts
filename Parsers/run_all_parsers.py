@@ -2,11 +2,13 @@ from maggma.builders import MapBuilder
 from maggma.stores import MongoStore
 from parse_cord_papers import parse_cord_doc
 from parse_biorxiv_papers import parse_biorxiv_doc
+from parse_google_forms_submissions import parse_google_forms_doc
 import os
+import pymongo
 
-# client = pymongo.MongoClient(os.getenv("COVID_HOST"), username=os.getenv("COVID_USER"),
-#                              password=os.getenv("COVID_PASS"), authSource=os.getenv("COVID_DB"))
-# db = client[os.getenv("COVID_DB")]
+client = pymongo.MongoClient(os.getenv("COVID_HOST"), username=os.getenv("COVID_USER"),
+                             password=os.getenv("COVID_PASS"), authSource=os.getenv("COVID_DB"))
+db = client[os.getenv("COVID_DB")]
 
 CORD_collection_names = ['CORD_noncomm_use_subset',
   'CORD_comm_use_subset',
@@ -34,7 +36,7 @@ biorxiv_parsed_db = MongoStore(database=os.getenv("COVID_DB"),
 
 biorxiv_builder = MapBuilder(source=biorxiv_db,
                              target=biorxiv_parsed_db,
-                             ufn=lambda x: parse_biorxiv_doc(x, biorxiv_db.database),
+                             ufn=lambda x: parse_biorxiv_doc(x, db),
                              incremental=True,
                              delete_orphans=False,
                              query=None,
@@ -43,6 +45,34 @@ biorxiv_builder = MapBuilder(source=biorxiv_db,
 print("Scraper_connect_biorxiv_org")
 biorxiv_builder.run()
 
+google_forms_db = MongoStore(database=os.getenv("COVID_DB"),
+                         collection_name="google_form_submissions",
+                         host=os.getenv("COVID_HOST"),
+                         username=os.getenv("COVID_USER"),
+                         password=os.getenv("COVID_PASS"),
+                         key="row_id",
+                         lu_field="last_updated",
+                         lu_type="datetime")
+
+google_forms_parsed_db = MongoStore(database=os.getenv("COVID_DB"),
+                         collection_name="google_form_submissions_parsed",
+                         host=os.getenv("COVID_HOST"),
+                         username=os.getenv("COVID_USER"),
+                         password=os.getenv("COVID_PASS"),
+                         key="row_id",
+                         lu_field="last_updated",
+                         lu_type="datetime")
+
+google_forms_builder = MapBuilder(source=google_forms_db,
+                             target=google_forms_parsed_db,
+                             ufn=lambda x: parse_google_forms_doc(x, db),
+                             incremental=True,
+                             delete_orphans=False,
+                             query=None,
+                             store_process_time=False)
+
+print("google_forms_submissions")
+google_forms_builder.run()
 
 CORD_builders = dict()
 for collection in CORD_collection_names:
