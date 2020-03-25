@@ -3,6 +3,7 @@ import os
 import datetime
 from pprint import pprint
 from collections  import defaultdict
+import datetime
 
 def clean_title(title):
     clean_title = title.split("Running Title")[0]
@@ -59,49 +60,86 @@ def parse_cord_doc(doc, collection_name):
 	except KeyError:
 		parsed_doc["journal"] = None
 
-	try:
+	if 'crossref_raw_result' in doc.keys():
+		if 'publish_date' in doc.keys():
+			pd = doc['publish_date']
+		elif 'crossref_raw_result' in doc.keys() and 'published-print' in doc['crossref_raw_result'].keys():
+			pd = doc['crossref_raw_result']['published-print']['date-parts'][0]
+		else:
+			pd = None
+
 		publication_date_dict = defaultdict(lambda: 1)
+		if isinstance(pd, dict):
+			for k,v in pd.items():
+				if v is not None:
+					publication_date_dict[k] = v
 
-		for k,v in doc['publish_date']:
-			publication_date_dict[k] = v
+			if 'year' in pd.keys() and pd['year'] is not None:
+				#Year is mandatory
+				parsed_doc['publication_date'] = datetime.datetime(year=pd['year'], month=publication_date_dict['month'], day=publication_date_dict['day'])
+			else:
+				parsed_doc['publication_date'] = None
 
-		#Year is mandatory
-		parsed_doc['publication_date'] = Datetime.Datetime(year=doc['publish_date']['year'], month=publication_date_dict['month'], day=publication_date_dict['day'])
+		elif isinstance(pd, list):
+			if len(pd) == 2 and all([x is not None for x in pd]):
+				parsed_doc['publication_date'] = datetime.datetime(year=pd[0], month=pd[1], day=1)		
+			elif len(pd) >= 1 and pd[0] is not None:
+				parsed_doc['publication_date'] = datetime.datetime(year=pd[0], month=1, day=1)		
 
-		parsed_doc["publication_date"] = publication_date_dict
-	except KeyError:
-		parsed_doc['publication_date'] = None
+		else:
+			parsed_doc["publication_date"] = None
+		# except KeyError:
+		# 	pprint(doc)
+		# 	exit(1)
+		# 	parsed_doc['publication_date'] = None
 
-	author_list = []
-	for a in doc['metadata']['authors']:
-		author = dict()
-		name = ""
-		if a['first'] and a['first'] != "":
-			name += a['first']
-		if len(a['middle']) > 0:
-			name += " "+" ".join([m for m in a['middle']])
-		if a['last'] and a['last'] != "":
-			name += " "+a['last']
-		if a['suffix'] and a['suffix'] != "":
-			name += " "+a['suffix']
-		author['Name'] = name
+		author_list = []
+		for a in doc['metadata']['authors']:
+			author = dict()
+			name = ""
+			if a['first'] and a['first'] != "":
+				name += a['first']
+			if len(a['middle']) > 0:
+				name += " "+" ".join([m for m in a['middle']])
+			if a['last'] and a['last'] != "":
+				name += " "+a['last']
+			if a['suffix'] and a['suffix'] != "":
+				name += " "+a['suffix']
+			author['name'] = name
 
-		if a['email'] != "":
-			author['Email'] = a['email'].strip()
+			if a['email'] != "":
+				author['email'] = a['email'].strip()
 
-		if 'institution' in a['affiliation'].keys():
-			author['Affiliation'] = a['affiliation']['institution']
+			if 'institution' in a['affiliation'].keys():
+				author['affiliation'] = a['affiliation']['institution']
 
-		if len(author['Name']) > 3:
-			author_list.append(author)
+			if len(author['name']) > 3:
+				author_list.append(author)
 
-	parsed_doc['authors'] = author_list
+		parsed_doc['authors'] = author_list
 
-	abstract = ""
-	for t in doc['abstract']:
-		abstract += t['text']
+		if 'abstract' in doc['crossref_raw_result'].keys() and len(doc['crossref_raw_result']['abstract']) > 0:
+			parsed_doc['abstract'] = doc['crossref_raw_result']['abstract']
+		else:
+			abstract = ""
+			for t in doc['abstract']:
+				abstract += t['text']
 
-	parsed_doc['abstract'] = abstract
+			parsed_doc['abstract'] = abstract
+
+	else:
+		parsed_doc['abstract'] = doc['csv_raw_result']['abstract']
+		parsed_doc['authors'] = [{'name':a} for a in doc['csv_raw_result']['authors'].split(';')]
+		parsed_doc['journal'] = doc['csv_raw_result']['journal']
+		try:
+			parsed_doc['publication_date'] = datetime.datetime.strptime(doc['csv_raw_result']['publish_time'],'%Y-%m-%d')
+		except ValueError:
+			try:
+				parsed_doc['publication_date'] = datetime.datetime.strptime(doc['csv_raw_result']['publish_time'],'%Y %b %d')
+			except ValueError:
+				parsed_doc['publication_date'] = datetime.datetime.strptime(doc['csv_raw_result']['publish_time'],'%Y %b')
+				
+
 
 	sections = dict()
 	for t in doc['body_text']:
@@ -120,5 +158,4 @@ def parse_cord_doc(doc, collection_name):
 
 
 	parsed_doc['citations'] = citations_list
-
 	return parsed_doc
