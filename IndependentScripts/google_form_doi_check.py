@@ -30,11 +30,14 @@ def valid_a_doi(doi, doc_data=None):
 
     # check via crossref
     if valid:
-        query_result = query_crossref_by_doi(doi)
-        if query_result is None:
+        try:
+            query_result = query_crossref_by_doi(doi)
+        except Exception as e:
+            query_result = None
             valid = False
-            print('Unable to find by crossref. doi: {} might be invalid!'.format(doi))
-        elif ('abstract' in query_result
+            print(e)
+        if (query_result is not None
+            and 'abstract' in query_result
             and len(query_result['abstract']) > 0
             and 'abstract' in doc_data
             and len(doc_data['abstract']) > 0
@@ -57,10 +60,12 @@ def valid_a_doi(doi, doc_data=None):
 
     if valid:
         # check via doi.org
-        query_result = query_doiorg_by_doi(doi)
-        if query_result is None or query_result.reason != 'OK':
+        try:
+            query_result = query_doiorg_by_doi(doi)
+        except Exception as e:
+            query_result = None
             valid = False
-            print('Unable to find by doi.org. doi: {} might be invalid!'.format(doi))
+            print(e)
 
     return valid
 
