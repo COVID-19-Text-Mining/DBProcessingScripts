@@ -52,7 +52,6 @@ def parse_cord_doc(doc, collection_name):
     parsed_doc['title'] = doc['metadata']['title']
     parsed_doc['doi'] = doc['doi'].strip()
     parsed_doc['origin'] = collection_name
-    parsed_doc['last_updated'] = datetime.datetime.now()
     parsed_doc['link'] = "https://doi.org/%s"%parsed_doc['doi']
 
     try:
@@ -157,6 +156,10 @@ def parse_cord_doc(doc, collection_name):
             except ValueError:
                 parsed_doc['publication_date'] = datetime.datetime.strptime(doc['csv_raw_result']['publish_time'],'%Y %b')
                 
+
+    if 'abstract' in parsed_doc.keys() and parsed_doc['abstract'] is not None:
+        if 'a b s t r a c t' in parsed_doc['abstract']:
+            parsed_doc['abstract'] = parsed_doc['abstract'].split('a b s t r a c t')[1]
 
 
     sections = dict()
