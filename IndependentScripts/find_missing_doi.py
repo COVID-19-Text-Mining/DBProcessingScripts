@@ -595,7 +595,11 @@ def doi_match_a_batch_by_crossref(task_batch):
                 'order': 'desc',
                 'query.bibliographic': title,
             }
-            query_results = query_crossref(query_params)
+            try:
+                query_results = query_crossref(query_params)
+            except Exception as e:
+                query_results = None
+                print(e)
             if query_results is not None:
                 crossref_results.extend(query_results)
 
@@ -605,7 +609,11 @@ def doi_match_a_batch_by_crossref(task_batch):
                 'order': 'desc',
                 'query.bibliographic': ', '.join([x['last'] for x in author_names]),
             }
-            query_results = query_crossref(query_params)
+            try:
+                query_results = query_crossref(query_params)
+            except Exception as e:
+                query_results = None
+                print(e)
             if query_results is not None:
                 crossref_results.extend(query_results)
 
