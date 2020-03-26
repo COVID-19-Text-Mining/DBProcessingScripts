@@ -245,14 +245,17 @@ def parse_google_forms_doc(doc, db):
     parsed_doc['summary_human'] = doc['summary_human']
     parsed_doc['relevance_human'] = doc['relevance_human']
 
+    parsed_doc['has_year'] = doc['has_year']
+    parsed_doc['has_month'] = doc['has_month']
+    parsed_doc['has_day'] = doc['has_day']
+
     for field in ['link', 'journal', 'publication_date', 'abstract']:
         try:
             parsed_doc[field] = doc[field]
         except KeyError:
             pass
     try:
-        #Made an oopsie in the form submission uploader and forgot to specify that the keywords are from humans
-        parsed_doc['keywords_human'] = doc['keywords']
+        parsed_doc['keywords'] = doc['keywords']
     except KeyError:
         pass
 
