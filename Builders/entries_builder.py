@@ -22,10 +22,13 @@ entries_keys = ['title',
     'link',
     'category_human',
     'category_ML',
-    'keywords_human',
+    'keywords',
     'keywords_ML',
     'summary_human',
-    'summary_ML'
+    'summary_ML',
+    'has_year',
+    'has_month',
+    'has_day',
     ]
 
 def merge_documents(high_priority_doc, low_priority_doc):
@@ -35,7 +38,7 @@ def merge_documents(high_priority_doc, low_priority_doc):
     merged_doc = dict()
     for k in entries_keys:
         #Treat human annotations separately - always merge them into a list
-        if k not in ['summary_human', 'keywords_human', 'category_human', 'category_human']:
+        if k not in ['summary_human', 'keywords', 'category_human', 'category_human']:
     
             #First fill in what we can from high_priority_doc
             if k in high_priority_doc.keys() and high_priority_doc[k] is not None and high_priority_doc[k] not in ["", []]:
@@ -58,6 +61,10 @@ def merge_documents(high_priority_doc, low_priority_doc):
             merged_doc[k] = [anno.strip() for anno in merged_category]
 
     merged_doc['last_updated'] = datetime.datetime.now()
+
+    for date_bool_key in ['has_day', 'has_month', 'has_year']:
+        if date_bool_key not in merged_doc.keys():
+            merged_doc[date_bool_key] = False
 
     return merged_doc
 
@@ -125,6 +132,8 @@ for doc in db.google_form_submissions.find({'doi': {"$exists": True}, 'title': {
     else:
         #otherwise use this to make a new entry
         insert_doc = {k:v for k,v in doc.items() if k in entries_keys}
+        #Raw 'google form submissions' collection doesn't have an origin field
+        insert_doc['origin'] = 'google_form_submissions'
     db.entries_trial.update_one({"doi": insert_doc['doi']}, {"$set": insert_doc}, upsert=True)
 
 #Finally, let's log that we've done a sweep so we don't have to go back over entries

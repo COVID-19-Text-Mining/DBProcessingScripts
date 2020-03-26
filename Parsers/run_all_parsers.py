@@ -16,6 +16,39 @@ CORD_collection_names = ['CORD_noncomm_use_subset',
   'CORD_custom_license',
   'CORD_metadata']
 
+CORD_builders = dict()
+for collection in CORD_collection_names:
+  db = MongoStore(database=os.getenv("COVID_DB"),
+                             collection_name=collection,
+                             host=os.getenv("COVID_HOST"),
+                             username=os.getenv("COVID_USER"),
+                             password=os.getenv("COVID_PASS"),
+                             key="doi",
+                             lu_field="last_updated",
+                             lu_type="datetime")
+
+  parsed_db = MongoStore(database=os.getenv("COVID_DB"),
+                             collection_name=collection+"_parsed",
+                             host=os.getenv("COVID_HOST"),
+                             username=os.getenv("COVID_USER"),
+                             password=os.getenv("COVID_PASS"),
+                             key="doi",
+                             lu_field="last_updated",
+                             lu_type="datetime")
+
+  CORD_builders[collection] = MapBuilder(source=db,
+                                 target=parsed_db,
+                                 ufn=lambda x: parse_cord_doc(x, collection),
+                                 incremental=False,
+                                 delete_orphans=False,
+                                 query={"doi": {"$exists": True}},
+                                 store_process_time=False)
+
+for collection, builder in CORD_builders.items():
+  print(collection)
+  builder.run()
+
+
 biorxiv_db = MongoStore(database=os.getenv("COVID_DB"),
                          collection_name="Scraper_connect_biorxiv_org",
                          host=os.getenv("COVID_HOST"),
@@ -37,7 +70,7 @@ biorxiv_parsed_db = MongoStore(database=os.getenv("COVID_DB"),
 biorxiv_builder = MapBuilder(source=biorxiv_db,
                              target=biorxiv_parsed_db,
                              ufn=lambda x: parse_biorxiv_doc(x, db),
-                             incremental=True,
+                             incremental=False,
                              delete_orphans=False,
                              query=None,
                              store_process_time=False)
@@ -66,7 +99,7 @@ google_forms_parsed_db = MongoStore(database=os.getenv("COVID_DB"),
 google_forms_builder = MapBuilder(source=google_forms_db,
                              target=google_forms_parsed_db,
                              ufn=lambda x: parse_google_forms_doc(x, db),
-                             incremental=True,
+                             incremental=False,
                              delete_orphans=False,
                              query=None,
                              store_process_time=False)
@@ -74,34 +107,3 @@ google_forms_builder = MapBuilder(source=google_forms_db,
 print("google_forms_submissions")
 google_forms_builder.run()
 
-CORD_builders = dict()
-for collection in CORD_collection_names:
-  db = MongoStore(database=os.getenv("COVID_DB"),
-                             collection_name=collection,
-                             host=os.getenv("COVID_HOST"),
-                             username=os.getenv("COVID_USER"),
-                             password=os.getenv("COVID_PASS"),
-                             key="doi",
-                             lu_field="last_updated",
-                             lu_type="datetime")
-
-  parsed_db = MongoStore(database=os.getenv("COVID_DB"),
-                             collection_name=collection+"_parsed",
-                             host=os.getenv("COVID_HOST"),
-                             username=os.getenv("COVID_USER"),
-                             password=os.getenv("COVID_PASS"),
-                             key="doi",
-                             lu_field="last_updated",
-                             lu_type="datetime")
-
-  CORD_builders[collection] = MapBuilder(source=db,
-                                 target=parsed_db,
-                                 ufn=lambda x: parse_cord_doc(x, collection),
-                                 incremental=True,
-                                 delete_orphans=False,
-                                 query={"doi": {"$exists": True}},
-                                 store_process_time=False)
-
-for collection, builder in CORD_builders.items():
-  print(collection)
-  builder.run()

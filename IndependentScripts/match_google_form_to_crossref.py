@@ -30,8 +30,18 @@ def crossref_data(doi):
         try:
             date = "{0}/{1}/{2}".format(date[0][1], date[0][2], date[0][0])
             cr_metadata['publication_date'] = datetime.datetime.strptime(date, "%m/%d/%Y") #Get date
+            
+            cr_metadata['has_year'] = True
+            cr_metadata['has_month'] = True
+            cr_metadata['has_day'] = True
+
         except IndexError:
             cr_metadata['publication_date'] = datetime.datetime.strptime(str(date[0][0]), "%Y")
+
+            cr_metadata['has_year'] = True
+            cr_metadata['has_month'] = False
+            cr_metadata['has_day'] = False
+
         if 'author' in cr_response:
             authors = []
             for author in cr_response['author']:

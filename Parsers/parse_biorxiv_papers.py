@@ -223,6 +223,10 @@ def parse_biorxiv_doc(doc, db):
 
     parsed_doc['abstract'] = doc['Abstract']
 
+    parsed_doc['has_year'] = True
+    parsed_doc['has_month'] = True
+    parsed_doc['has_day'] = True
+
     paper_fs = gridfs.GridFS(
         db, collection='Scraper_connect_biorxiv_org_fs')
     pdf_file = paper_fs.get(doc['PDF_gridfs_id'])
