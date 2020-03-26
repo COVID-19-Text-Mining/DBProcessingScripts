@@ -6,6 +6,7 @@ import pymongo
 import regex
 from datetime import datetime
 import requests
+import warnings
 
 ###########################################
 # text comparison
@@ -279,15 +280,15 @@ def query_crossref_by_doi(doi, verbose=True):
             query_url,
         )
     except:
-        print('request to crossref failed!')
+        raise ConnectionError(
+            'Request to crossref failed when searching doi: {}!'.format(doi)
+        )
     try:
         query_results = query_results.json()
     except Exception as e:
-        print('query result cannot be jsonified!')
-        print('query_results.text', query_results.text)
-        print('query_results.status_code', query_results.status_code)
-        print('query_results.reason', query_results.reason)
-        print()
+        raise ValueError(
+            'Query result from crossref cannot be jsonified when searching doi: {}!'.format(doi)
+        )
 
     # filter out empty query results
     if ('message' in query_results
@@ -295,9 +296,9 @@ def query_crossref_by_doi(doi, verbose=True):
     ):
         crossref_results = query_results['message']
     else:
-        print('EMPTY RESULT')
-        pprint(query_results)
-        print()
+        warnings.warn(
+            'Empty result from crossref when searching doi: {}'.format(doi)
+        )
 
     return crossref_results
 
@@ -314,15 +315,15 @@ def query_crossref(query_params):
             params=query_params,
         )
     except:
-        print('request to crossref failed!')
+        raise ConnectionError(
+            'Request to crossref failed when querying by: {}!'.format(query_params)
+        )
     try:
         query_results = query_results.json()
     except Exception as e:
-        print('query result cannot be jsonified!')
-        print('query_results.text', query_results.text)
-        print('query_results.status_code', query_results.status_code)
-        print('query_results.reason', query_results.reason)
-        print()
+        raise ValueError(
+            'Query result from crossref cannot be jsonified when querying by: {}!'.format(query_params)
+        )
 
     # filter out empty query results
     if ('message' in query_results
@@ -332,9 +333,9 @@ def query_crossref(query_params):
     ):
         crossref_results = query_results['message']['items']
     else:
-        print('EMPTY RESULT')
-        pprint(query_results)
-        print()
+        warnings.warn(
+            'Empty result from crossref when querying by: {}!'.format(query_params)
+        )
 
     return crossref_results
 
@@ -355,7 +356,13 @@ def query_doiorg_by_doi(doi):
             headers=headers
         )
     except:
-        print('request to doi.org failed!')
+        raise ConnectionError(
+            'Request to doi.org failed when searching doi: {}!'.format(doi)
+        )
+    if query_results.reason != 'OK':
+        raise ValueError(
+            'Error result from doi.org when searching doi: {}!'.format(doi)
+        )
 
     return query_results
 
