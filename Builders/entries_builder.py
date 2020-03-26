@@ -2,6 +2,7 @@ import os
 import pymongo
 import sys
 import json
+import datetime
 
 client = pymongo.MongoClient(os.getenv("COVID_HOST"), username=os.getenv("COVID_USER"),
                              password=os.getenv("COVID_PASS"), authSource=os.getenv("COVID_DB"))
@@ -12,7 +13,7 @@ entries_keys = ['title',
     'authors',
     'doi',
     'journal',
-    'publication_date'
+    'publication_date',
     'abstract',
     'origin',
     'last_updated',
@@ -22,7 +23,7 @@ entries_keys = ['title',
     'category_human',
     'category_ML',
     'keywords_human',
-    'keywords_Ml',
+    'keywords_ML',
     'summary_human',
     'summary_ML'
     ]
@@ -56,6 +57,8 @@ def merge_documents(high_priority_doc, low_priority_doc):
 
             merged_doc[k] = [anno.strip() for anno in merged_category]
 
+    merged_doc['last_updated'] = datetime.datetime.now()
+
     return merged_doc
 
 #Collections are listed in priority order
@@ -88,9 +91,10 @@ def document_priority_greater_than(doc1, doc2):
 
 parsed_collections = [a+"_parsed" for a in origin_collections]
 
+last_entries_builder_sweep = db.metadata.find_one({'data': 'last_entries_builder_sweep'})['datetime']
 for collection in parsed_collections:
     print(collection)
-    for doc in db[collection].find({'doi': {"$exists": True}, 'title': {"$exists": True}}):
+    for doc in db[collection].find({'doi': {"$exists": True}, 'title': {"$exists": True}, 'last_updated': {'$gte': last_entries_builder_sweep}}):
         #doi and title are mandatory
 
         existing_entry = db.entries_trial.find_one({"doi": doc['doi']})
@@ -111,7 +115,7 @@ for collection in parsed_collections:
 #Uploading and parsing the PDFs takes a while, and
 #so we do this to let people see their submission up sooner
 #This is always the lowest priority
-for doc in db.google_form_submissions.find({'doi': {"$exists": True}, 'title': {"$exists": True}}):
+for doc in db.google_form_submissions.find({'doi': {"$exists": True}, 'title': {"$exists": True}, 'last_updated': {'$gte': last_entries_builder_sweep}}):
 
     existing_entry = db.entries_trial.find_one({"doi": doc['doi']})
     if existing_entry:
@@ -122,3 +126,6 @@ for doc in db.google_form_submissions.find({'doi': {"$exists": True}, 'title': {
         #otherwise use this to make a new entry
         insert_doc = {k:v for k,v in doc.items() if k in entries_keys}
     db.entries_trial.update_one({"doi": insert_doc['doi']}, {"$set": insert_doc}, upsert=True)
+
+#Finally, let's log that we've done a sweep so we don't have to go back over entries
+db.metadata.update_one({'data': 'last_entries_builder_sweep'}, {"$set": {"datetime": datetime.datetime.now()}})
