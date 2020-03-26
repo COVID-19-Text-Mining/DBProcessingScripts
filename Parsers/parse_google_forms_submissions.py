@@ -239,7 +239,6 @@ def parse_google_forms_doc(doc, db):
     parsed_doc['title'] = doc['title']
     parsed_doc['doi'] = doc['doi']
     parsed_doc['origin'] = "google_form_submissions"
-    parsed_doc['last_updated'] = datetime.datetime.now()
 
     parsed_doc['category_human'] = doc['category_human']
     parsed_doc['summary_human'] = doc['summary_human']

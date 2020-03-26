@@ -208,7 +208,6 @@ def parse_biorxiv_doc(doc, db):
     parsed_doc['title'] = doc['Title']
     parsed_doc['doi'] = doc['Doi']
     parsed_doc['origin'] = "Scraper_connect_biorxiv_org"
-    parsed_doc['last_updated'] = datetime.datetime.now()
     parsed_doc['link'] = doc['Link']
 
     parsed_doc['journal'] = doc['Journal']

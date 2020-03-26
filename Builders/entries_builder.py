@@ -66,6 +66,10 @@ def merge_documents(high_priority_doc, low_priority_doc):
         if date_bool_key not in merged_doc.keys():
             merged_doc[date_bool_key] = False
 
+    if 'abstract' in merged_doc.keys() and merged_doc['abstract'] is not None:
+        if 'a b s t r a c t' in merged_doc['abstract']:
+            merged_doc['abstract'] = merged_doc['abstract'].split('a b s t r a c t')[1]
+
     return merged_doc
 
 #Collections are listed in priority order
@@ -101,7 +105,7 @@ parsed_collections = [a+"_parsed" for a in origin_collections]
 last_entries_builder_sweep = db.metadata.find_one({'data': 'last_entries_builder_sweep'})['datetime']
 for collection in parsed_collections:
     print(collection)
-    for doc in db[collection].find({'doi': {"$exists": True}, 'title': {"$exists": True}, 'last_updated': {'$gte': last_entries_builder_sweep}}):
+    for doc in db[collection].find({'doi': {"$exists": True}, 'title': {"$exists": True}, '_bt': {'$gte': last_entries_builder_sweep}}):
         #doi and title are mandatory
 
         existing_entry = db.entries_trial.find_one({"doi": doc['doi']})
