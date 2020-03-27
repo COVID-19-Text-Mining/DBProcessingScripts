@@ -18,7 +18,8 @@ def parse_biorxiv_doc(doc, db):
     parsed_doc['journal'] = doc['Journal']
     parsed_doc['publication_date'] = doc['Publication_Date']
     parsed_doc['authors'] = doc["Authors"]
-    parsed_doc['abstract'] = list(map(lambda x: re.sub(r'\s+', ' ', x), doc['Abstract']))
+    parsed_doc['abstract'] = ' '.join(
+        map(lambda x: re.sub(r'\s+', ' ', x), doc['Abstract']))
     parsed_doc['has_year'] = True
     parsed_doc['has_month'] = True
     parsed_doc['has_day'] = True

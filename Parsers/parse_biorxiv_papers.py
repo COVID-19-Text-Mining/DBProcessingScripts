@@ -13,9 +13,7 @@ def parse_biorxiv_doc(doc, db):
     parsed_doc['doi'] = doc['Doi']
     parsed_doc['origin'] = "Scraper_connect_biorxiv_org"
     parsed_doc['link'] = doc['Link']
-
     parsed_doc['journal'] = doc['Journal']
-
     parsed_doc['publication_date'] = doc['Publication_Date']
 
     author_list = doc["Authors"]
@@ -23,9 +21,7 @@ def parse_biorxiv_doc(doc, db):
         a['Name'] = a['Name']['fn'] + " " + a['Name']['ln']
 
     parsed_doc['authors'] = author_list
-
-    parsed_doc['abstract'] = doc['Abstract']
-
+    parsed_doc['abstract'] = ' '.join(doc['Abstract'])
     parsed_doc['has_year'] = True
     parsed_doc['has_month'] = True
     parsed_doc['has_day'] = True
