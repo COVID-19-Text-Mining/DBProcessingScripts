@@ -1,21 +1,3 @@
-import threading
-
-import requests
-import json
-import urllib
-import glob
-from pprint import pprint
-import re
-from datetime import datetime
-import difflib
-import Levenshtein
-import collections
-import numpy as np
-from statsmodels.stats.weightstats import DescrStatsW
-import seaborn as sns
-import multiprocessing as mp
-import pandas as pd
-
 from common_utils import get_mongo_db, query_crossref_by_doi, query_doiorg_by_doi, text_similarity_by_char
 from common_utils import LEAST_ABS_LEN, FIVE_PERCENT_ABS_LEN, LEAST_ABS_SIMILARITY, IGNORE_BEGIN_END_ABS_SIMILARITY
 
