@@ -66,7 +66,7 @@ for i, entry in enumerate(entries):
 
     if i%1000 == 0:
         print((i, covid_count))
-    covid19_words = ["COVID-19", "SARS-CoV2", "sars-cov-2", "nCoV-2019", "covid19", "sarscov2", "ncov2019", "covid 19", "sars cov2", "ncov 2019", "severe acute respiratory syndrome coronavirus 2", "Wuhan seafood market pneumonia virus", "Coronavirus disease", "covid", "wuhan virus"]
+    covid19_words = ["COVID-19", "SARS-CoV2", "sars-cov-2", "nCoV-2019", "covid19", "sarscov2", "ncov2019", "covid 19", "sars cov2", "ncov 2019", "severe acute respiratory syndrome coronavirus 2", "Wuhan seafood market pneumonia virus", "Coronavirus disease", "covid", "wuhan virus", "HCoV-19"]
     # if 'category_human' in entry.keys() and not "COVID-19/SARS-CoV2/nCoV-2019" in entry['category_human']:
         # print(entry['category_human'])
      # and entry['category_human'] == "COVID-19/SARS-CoV2/nCoV-2019":
