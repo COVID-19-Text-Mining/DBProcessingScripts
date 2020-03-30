@@ -77,7 +77,8 @@ db = client[os.getenv("COVID_DB")]
 
 for e in db[collection_name].find({"crossref_raw_result": {"$exists" : False}}):
     print("Searching for metadata for row {}, doi {}".format(e['row_id'], e['doi']))
-    if valid_a_doi(e['doi'], e):
+    # if valid_a_doi(e['doi'], e):
+    if True:
     #First validate the doi
         cr_metadata = crossref_data(e['doi'])
         if cr_metadata is not None:

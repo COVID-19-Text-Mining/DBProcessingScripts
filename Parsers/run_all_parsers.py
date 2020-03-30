@@ -18,7 +18,7 @@ CORD_collection_names = ['CORD_noncomm_use_subset',
 
 CORD_builders = dict()
 for collection in CORD_collection_names:
-  db = MongoStore(database=os.getenv("COVID_DB"),
+  cord_db = MongoStore(database=os.getenv("COVID_DB"),
                              collection_name=collection,
                              host=os.getenv("COVID_HOST"),
                              username=os.getenv("COVID_USER"),
@@ -36,7 +36,7 @@ for collection in CORD_collection_names:
                              lu_field="last_updated",
                              lu_type="datetime")
 
-  CORD_builders[collection] = MapBuilder(source=db,
+  CORD_builders[collection] = MapBuilder(source=cord_db,
                                  target=parsed_db,
                                  ufn=lambda x: parse_cord_doc(x, collection),
                                  incremental=True,

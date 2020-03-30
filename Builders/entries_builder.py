@@ -74,7 +74,7 @@ def merge_documents(high_priority_doc, low_priority_doc):
 
 #Collections are listed in priority order
 origin_collections = [
-  'google_form_submissions'  
+  'google_form_submissions',  
   'Scraper_connect_biorxiv_org',
   'CORD_noncomm_use_subset',
   'CORD_comm_use_subset',
@@ -108,7 +108,7 @@ for collection in parsed_collections:
     for doc in db[collection].find({'doi': {"$exists": True}, 'title': {"$exists": True}, '_bt': {'$gte': last_entries_builder_sweep}}):
         #doi and title are mandatory
 
-        existing_entry = db.entries_trial.find_one({"doi": doc['doi']})
+        existing_entry = db.entries.find_one({"doi": doc['doi']})
         if existing_entry:
         #Check to see if we already have a doc with this DOI in the entries collection
             if document_priority_greater_than(existing_entry, doc):
@@ -128,7 +128,7 @@ for collection in parsed_collections:
 #This is always the lowest priority
 for doc in db.google_form_submissions.find({'doi': {"$exists": True}, 'title': {"$exists": True}, 'last_updated': {'$gte': last_entries_builder_sweep}}):
 
-    existing_entry = db.entries_trial.find_one({"doi": doc['doi']})
+    existing_entry = db.entries.find_one({"doi": doc['doi']})
     if existing_entry:
     #Check to see if we already have a doc with this DOI in the entries collection
     #This is always the lowest priority doc
@@ -138,7 +138,7 @@ for doc in db.google_form_submissions.find({'doi': {"$exists": True}, 'title': {
         insert_doc = {k:v for k,v in doc.items() if k in entries_keys}
         #Raw 'google form submissions' collection doesn't have an origin field
         insert_doc['origin'] = 'google_form_submissions'
-    db.entries_trial.update_one({"doi": insert_doc['doi']}, {"$set": insert_doc}, upsert=True)
+    db.entries.update_one({"doi": insert_doc['doi']}, {"$set": insert_doc}, upsert=True)
 
 #Finally, let's log that we've done a sweep so we don't have to go back over entries
 db.metadata.update_one({'data': 'last_entries_builder_sweep'}, {"$set": {"datetime": datetime.datetime.now()}})
