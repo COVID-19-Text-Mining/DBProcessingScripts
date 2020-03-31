@@ -11,10 +11,15 @@ There are currently one pre-trained FastText model.
 ## Manual
 0. The whole project is developed and tested on `Python 3.7.6`.
 
-1. Download and install required packages
+1. Download and install required packages (Remember to set the environment variable `FASTTEXT_DIR`)
 ```Shell
-pip install git+https://github.com/facebookresearch/fastText.git
-pip install spacy numpy
+git clone https://github.com/facebookresearch/fastText.git
+cd fastText
+make
+chmod 755 fasttext
+export FASSTTEXT_DIR=/CURRENT/DIR
+
+pip install chemdataextractor spacy numpy
 ```
 
 2. For MongoDB users, all the useful APIs are available at `similar_abstract_mongodb.py`.
@@ -31,6 +36,8 @@ abstract_similarity.build()
 # update the similar_abstract for the old ones as well
 abstract_similarity.update()
 ```
+- Note that model file should end with `.bin`.
+
 You can also use this script from command line.
 ```
 ~ > python similar_abstract_mongodb.py -h

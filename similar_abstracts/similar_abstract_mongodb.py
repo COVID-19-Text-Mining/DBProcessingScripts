@@ -4,6 +4,7 @@ import pymongo
 import logging
 import fasttext
 import datetime
+import subprocess
 import numpy as np
 
 from pretokenize import PreTokenize
@@ -47,7 +48,11 @@ class AbstractSimilarity:
         self.db = client[os.getenv("COVID_DB")]
         logger.info("Log in to the database successfully.")
         self.model_path = model_path
-        self.model = fasttext.load_model(self.model_path)
+        try:
+            self.model = fasttext.load_model(self.model_path)
+        except ValueError and FileNotFoundError:
+            logger.warning("No proper model file found. Please run train method first.")
+            self.model = None
 
     def train(self):
         """
@@ -71,12 +76,29 @@ class AbstractSimilarity:
                     f.write(" ".join(tokens)+"\n")
 
         logger.info("Training the model -- Arguments: {}".format(self.training_args))
-        model = fasttext.train_unsupervised(input=tmp_path, **self.training_args)
-        model.save_model(self.model_path)
-        self.model = model  # load new model
 
-        # delete the tmp file
-        os.remove(tmp_path)
+        try:
+            # training the model
+            subprocess.run([
+                os.path.join(os.getenv("FASTTEXT_DIR"), "fasttext"),
+                "{model}".format(**self.training_args),
+                "-input", "{}".format(tmp_path),
+                "-output", "{}".format(self.model_path.rstrip(".bin")),
+                "-maxn", "{maxn}".format(**self.training_args),
+                "-minn", "{minn}".format(**self.training_args),
+                "-lr", "{lr}".format(**self.training_args),
+                "-dim", "{dim}".format(**self.training_args),
+                "-epoch", "{epoch}".format(**self.training_args),
+                "-minCount", "{minCount}".format(**self.training_args),
+                "-ws", "{ws}".format(**self.training_args)
+            ], check=True)
+            self.model = fasttext.load_model(self.model_path)  # load new model
+        finally:
+            # delete the tmp file
+            if os.path.isfile(tmp_path):
+                os.remove(tmp_path)
+            if os.path.isfile(self.model_path.rstrip(".bin")+".vec"):
+                os.remove(self.model_path.rstrip(".bin")+".vec")
         logger.info("Successfully save the new model and remove tmp file")
         self.db.metadata.update_one(
             {"data": "last_word_embedding_trained"}, {"$set": {"datetime": datetime.datetime.now()}}

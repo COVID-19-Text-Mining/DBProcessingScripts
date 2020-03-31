@@ -23,8 +23,8 @@ class FilterClass(object):
         'come', 'comes', 'concerning', 'consequently', 'consider', 'considering', 'contain', 'containing', 'contains',
         'corresponding', 'could', 'course', 'currently',
 
-        'definitely', 'described', 'despite', 'did', 'different', 'do', 'does', 'doing', 'done', 'down', 'downwards',
-        'during',
+        'definitely', 'described', 'despite', 'did', 'different', 'do', 'does', 'doi', 'doing', 'done', 'down',
+        'downwards', 'during',
 
         'each', 'edu', 'eg', 'either', 'else', 'elsewhere', 'enough', 'entirely', 'especially', 'etc', 'even', 'ever',
         'every', 'everybody', 'everyone', 'everything', 'everywhere', 'ex', 'exactly', 'example', 'except',
@@ -46,7 +46,7 @@ class FilterClass(object):
         'keep', 'keeps', 'kept', 'know', 'knows', 'known',
 
         'last', 'lately', 'later', 'latter', 'latterly', 'least', 'less', 'lest', 'let', 'like', 'liked', 'likely',
-        'little', 'look', 'looking', 'looks',
+        'little', 'license', 'look', 'looking', 'looks',
 
         'mainly', 'many', 'may', 'maybe', 'me', 'mean', 'meanwhile', 'merely', 'might', 'more', 'moreover', 'most',
         'mostly', 'much', 'must', 'my', 'myself',
@@ -116,7 +116,7 @@ class FilterClass(object):
 
         self.minimum_number_tokens = minimum_number_tokens
 
-    def __call__(self, orth, lemma, pos, min_length=True):
+    def __call__(self, orth, min_length=True):
         if len(orth) == 0:
             return []
 
@@ -124,24 +124,11 @@ class FilterClass(object):
             orth[0] = orth[0].lower()
 
         new_tokens = []
-        for _orth, _lemma, _pos in zip(orth, lemma, pos):
+        for _orth in orth:
             if _orth not in self.stopwords and re.fullmatch(r"[^A-Za-z]+|.|\d+(\.\d+)?|"+self.units, _orth) is None:
                 new_tokens.append(_orth)
 
         if min_length and len(new_tokens) < self.minimum_number_tokens:
-            return None
-
-        return new_tokens
-
-
-class WordLemmaFilterClass(FilterClass):
-    def __call__(self, orth, lemma, pos):
-        new_tokens = []
-        for _lemma in lemma:
-            if _lemma.isalpha():
-                new_tokens.append(_lemma)
-
-        if len(new_tokens) < 10:
             return None
 
         return new_tokens
