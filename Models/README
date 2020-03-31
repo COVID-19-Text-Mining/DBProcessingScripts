@@ -1,4 +1,4 @@
-#TfidfVectorizer fitted to all abstracts in 'ectries' collection. Preprocessing is done with the matscholar function. To use it, you should add the following:
+#TfidfVectorizer fitted to all abstracts in 'entries' collection and saved as pickle file. Preprocessing is done with the matscholar function. To use it, you should add the following:
 
 from matscholar_core.nlp import relevance
 from sklearn.feature_extraction.text import TfidfVectorizer
