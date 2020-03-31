@@ -1,0 +1,13 @@
+#TfidfVectorizer fitted to all abstracts in 'ectries' collection. Preprocessing is done with the matscholar function. To use it, you should add the following:
+
+from matscholar_core.nlp import relevance
+from sklearn.feature_extraction.text import TfidfVectorizer
+import dill as pickle
+
+with open('Models/tfidf.p', "rb") as f:
+	tfidf = dill.load(f)
+
+relClass = relevance.RelevanceClassifier()
+processed = relClass._preprocess(YOUR_DOCUMENT)
+
+X = tfidf.transform([processed])
