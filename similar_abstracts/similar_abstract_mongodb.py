@@ -1,4 +1,5 @@
 import os
+import sys
 import heapq
 import pymongo
 import logging
@@ -38,7 +39,7 @@ class AbstractSimilarity:
         "minCount": 5,
         "minn": 3,
         "maxn": 6,
-        "verbose": 0
+        "verbose": 2
     }
 
     def __init__(self, model_path):
@@ -47,7 +48,10 @@ class AbstractSimilarity:
         self.db = client[os.getenv("COVID_DB")]
         logger.info("Log in to the database successfully.")
         self.model_path = model_path
-        self.model = fasttext.load_model(self.model_path)
+        try:
+            self.model = fasttext.load_model(self.model_path)
+        except ValueError:
+            pass
 
     def train(self):
         """
@@ -145,18 +149,22 @@ class AbstractSimilarity:
         current_time = datetime.datetime.now()  # the routine may take very long time
 
         # compute part b
-        cursor1 = {self.abstract_entry: {"$exists": True}, "_bt": {"$gte": last_abstract_similarity_sweep}}
+        # cursor1 = {self.abstract_entry: {"$exists": True}, "last_updated": {"$gte": last_abstract_similarity_sweep}}
+        cursor1 = {self.abstract_entry: {"$exists": True}, "similar_abstracts": {"$exists": False}}
+        print(last_abstract_similarity_sweep)
+        print(cursor1)
         cursor2 = cursor1
         self._update(cursor1, cursor2)
 
         # compute part a
-        cursor2 = {self.abstract_entry: {"$exists": True}, "_bt": {"$lt": last_abstract_similarity_sweep}}
+        cursor2 = {self.abstract_entry: {"$exists": True}, "last_updated": {"$lt": last_abstract_similarity_sweep}}
+        cursor2 = {self.abstract_entry: {"$exists": True}, "similar_abstracts": {"$exists": True}}
         self._update(cursor1, cursor2)
 
         # log the update
-        self.db.metadata.update_one(
-            {"data": "last_abstract_similarity_sweep"}, {"$set": {"datetime": current_time}}
-        )
+        # self.db.metadata.update_one(
+        #     {"data": "last_abstract_similarity_sweep"}, {"$set": {"datetime": current_time}}
+        # )
 
     def _update(self, cursor1, cursor2):
         """
@@ -169,6 +177,7 @@ class AbstractSimilarity:
         if cursor1 == cursor2:
             cursor2 = None
 
+        print(self.db[self.collection].find(cursor1).count())
         # for each abstracts to be updated
         for doc in self.db[self.collection].find(cursor1):
             try:
@@ -279,6 +288,12 @@ if __name__ == "__main__":
 
     logger.setLevel(verbose)
 
+    out_hdlr = logging.StreamHandler(sys.stdout)
+    out_hdlr.setFormatter(logging.Formatter('%(asctime)s %(message)s'))
+    out_hdlr.setLevel(logging.INFO)
+    logger.addHandler(out_hdlr)
+    logger.setLevel(logging.INFO)
+    
     aa = AbstractSimilarity(model_path)
     if mode == "train":
         aa.train()
