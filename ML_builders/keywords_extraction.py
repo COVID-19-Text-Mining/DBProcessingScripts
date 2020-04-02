@@ -1,13 +1,15 @@
 import json
 import numpy as np
-from common_utils import get_mongo_db
 from bson import json_util
 import summa
 import yake
 import pke
+import mrakun
 import regex
 import string
 from nltk.corpus import stopwords
+
+from IndependentScripts.common_utils import get_mongo_db
 
 class KeywordsExtractorBase():
     def __init__(self, **kwargs):
@@ -15,6 +17,8 @@ class KeywordsExtractorBase():
         # output_format could be words_only or words_and_scores
         self.output_format = kwargs.get('output_format', 'words_only')
         self.score_threshold = kwargs.get('score_threshold', None)
+        self.use_longest_phrase = kwargs.get('use_longest_phrase', False)
+        self.only_extractive = kwargs.get('only_extractive', True)
 
     def process(self, text):
         words_and_scores = self._process(text)
@@ -23,13 +27,21 @@ class KeywordsExtractorBase():
                 lambda x: x[1] > self.score_threshold,
                 words_and_scores
             ))
+        if self.only_extractive:
+            words_and_scores = list(filter(
+                lambda x: regex.search(r'\b{}\b'.format(x[0]), text, flags=regex.IGNORECASE),
+                words_and_scores
+            ))
         print('{} words_and_scores'.format(self.name))
         print(words_and_scores)
         print()
         if self.output_format == 'words_and_scores':
             return words_and_scores
         elif self.output_format == 'words_only':
-            return list(set([item[0] for item in words_and_scores]))
+            keywords = list(set([item[0] for item in words_and_scores]))
+            if self.use_longest_phrase:
+                keywords = self.get_longest_phrase(text=text, keywords=keywords)
+            return keywords
         else:
             raise AttributeError(
                 'output_format {} not recognized'.format(self.output_format)
@@ -85,6 +97,54 @@ class KeywordsExtractorBase():
                 )
         return hightlighted_html
 
+    def get_longest_phrase(self, text, keywords):
+        # get all matched in original text
+        all_hightlights = []
+        for w in keywords:
+            matches = regex.finditer(r'\b{}\b'.format(w), text, flags=regex.IGNORECASE)
+            all_hightlights.extend([
+                {
+                    'start': m.start(),
+                    'end': m.end(),
+                    'text': m.group(),
+                }
+                for m in matches
+            ])
+
+        all_hightlights = sorted(all_hightlights, key=lambda x: x['start'])
+
+        # connect adjecent keywords
+        long_hightlights = []
+        for h in all_hightlights:
+            if len(long_hightlights) == 0:
+                long_hightlights.append(h)
+                continue
+            if text[long_hightlights[-1]['end']: h['start']].strip() == '':
+                # merge
+                long_hightlights[-1]['end'] = max(long_hightlights[-1]['end'], h['end'])
+                long_hightlights[-1]['text'] = text[
+                   long_hightlights[-1]['start']: long_hightlights[-1]['end']
+                ]
+            else:
+                long_hightlights.append(h)
+
+        # ignore repeated but shorter keywords
+        long_hightlights = sorted(long_hightlights, key=lambda x: len(x['text']), reverse=True)
+        final_keywords = []
+        for h in long_hightlights:
+            to_add = True
+            for k in final_keywords:
+                if regex.search(r'\b{}\b'.format(h['text']), k['text'], flags=regex.IGNORECASE):
+                    to_add = False
+                    break
+            if to_add:
+                final_keywords.append(h)
+        final_keywords = [x['text'] for x in final_keywords]
+        # final_keywords = [x['text'] for x in all_hightlights]
+        # final_keywords = keywords
+        return final_keywords
+
+
     def full_tokenize(self, text):
         tokens = []
         for m in regex.finditer(r'\p{Punct}|.+?\b', text):
@@ -112,14 +172,16 @@ class KeywordsExtractorSumma(KeywordsExtractorBase):
 
 
 class KeywordsExtractorYake(KeywordsExtractorBase):
-    def __init__(self, max_ngram_size=3, window_size=1, **kwargs):
+    def __init__(self, max_ngram_size=3, window_size=1, top=20, **kwargs):
         super().__init__(**kwargs)
         self.name = kwargs.get('name', 'Yake')
         self.max_ngram_size = max_ngram_size
         self.window_size = window_size
+        self.top = top
         self.kw_extractor = yake.KeywordExtractor(
             n=self.max_ngram_size,
             windowsSize=self.window_size,
+            top=self.top,
         )
 
     def _process(self, text):
@@ -127,10 +189,13 @@ class KeywordsExtractorYake(KeywordsExtractorBase):
         return keywords
 
 class KeywordsExtractorTfIdf(KeywordsExtractorBase):
-    def __init__(self, max_ngram_size=3, **kwargs):
+    def __init__(self, max_ngram_size=3, df=None, **kwargs):
         super().__init__(**kwargs)
         self.name = kwargs.get('name', 'TfIdf')
         self.max_ngram_size = max_ngram_size
+        self.df = df
+        if isinstance(self.df, str):
+            self.df = pke.load_document_frequency_file(input_file=self.df)
         self.pos = {'NOUN', 'PROPN', 'ADJ'}
         self.stoplist = list(string.punctuation)
         self.stoplist += ['-lrb-', '-rrb-', '-lcb-', '-rcb-', '-lsb-', '-rsb-']
@@ -154,7 +219,7 @@ class KeywordsExtractorTfIdf(KeywordsExtractorBase):
         # build topics by grouping candidates with HAC (average linkage,
         #    threshold of 1/4 of shared stems). Weight the topics using random
         #    walk, and select the first occuring candidate from each topic.
-        self.kw_extractor.candidate_weighting()
+        self.kw_extractor.candidate_weighting(df=self.df)
 
         # get the 10-highest scored candidates as keyphrases
         num_keywords = len(self.kw_extractor.candidates)
@@ -166,13 +231,16 @@ class KeywordsExtractorTfIdf(KeywordsExtractorBase):
         return keywords
 
 class KeywordsExtractorKPMiner(KeywordsExtractorBase):
-    def __init__(self, lasf=3, cutoff=200, alpha=2.3, sigma=3.0, **kwargs):
+    def __init__(self, lasf=3, cutoff=200, alpha=2.3, sigma=3.0, df=None, **kwargs):
         super().__init__(**kwargs)
         self.name = kwargs.get('name', 'KPMiner')
         self.lasf = lasf
         self.cutoff = cutoff
         self.alpha = alpha
         self.sigma = sigma
+        self.df = df
+        if isinstance(self.df, str):
+            self.df = pke.load_document_frequency_file(input_file=self.df)
         self.pos = {'NOUN', 'PROPN', 'ADJ'}
         self.stoplist = list(string.punctuation)
         self.stoplist += ['-lrb-', '-rrb-', '-lcb-', '-rcb-', '-lsb-', '-rsb-']
@@ -200,6 +268,7 @@ class KeywordsExtractorKPMiner(KeywordsExtractorBase):
         self.kw_extractor.candidate_weighting(
             alpha=self.alpha,
             sigma=self.sigma,
+            df=self.df,
         )
 
         # get the 10-highest scored candidates as keyphrases
@@ -250,6 +319,58 @@ class KeywordsExtractorSingleRank(KeywordsExtractorBase):
             keywords = self.kw_extractor.get_n_best(n=10)
         else:
             keywords = self.kw_extractor.get_n_best(n=num_keywords)
+
+        return keywords
+
+class KeywordsExtractorTopicRank(KeywordsExtractorBase):
+    def __init__(self, threshold=0.74, method='average', heuristic=None, **kwargs):
+        super().__init__(**kwargs)
+        self.name = kwargs.get('name', 'TopicRank')
+        self.threshold = threshold
+        self.method = method
+        self.heuristic = heuristic
+        self.pos = {'NOUN', 'PROPN', 'ADJ'}
+        self.stoplist = list(string.punctuation)
+        self.stoplist += ['-lrb-', '-rrb-', '-lcb-', '-rcb-', '-lsb-', '-rsb-']
+        self.stoplist += stopwords.words('english')
+        self.kw_extractor = pke.unsupervised.TopicRank()
+
+    def _process(self, text):
+        # load the content of the document.
+        self.kw_extractor.load_document(
+            input=text,
+            language='en',
+        )
+
+        # select the longest sequences of nouns and adjectives, that do
+        #    not contain punctuation marks or stopwords as candidates.
+        self.kw_extractor.candidate_selection(
+            pos=self.pos,
+            stoplist=self.stoplist,
+        )
+        num_keywords = len(self.kw_extractor.candidates)
+
+
+        # build topics by grouping candidates with HAC (average linkage,
+        #    threshold of 1/4 of shared stems). Weight the topics using random
+        #    walk, and select the first occuring candidate from each topic.
+        if num_keywords > 0:
+            try:
+                self.kw_extractor.candidate_weighting(
+                    threshold=self.threshold,
+                    method=self.method,
+                    heuristic=self.heuristic,
+                )
+            except:
+                num_keywords = 0
+
+        # get the 10-highest scored candidates as keyphrases
+        if num_keywords > 10:
+            keywords = self.kw_extractor.get_n_best(n=10)
+        elif num_keywords > 0:
+            keywords = self.kw_extractor.get_n_best(n=num_keywords)
+        else:
+            keywords = []
 
         return keywords
 
@@ -412,55 +533,70 @@ class KeywordsExtractorMultipartiteRank(KeywordsExtractorBase):
         return keywords
 
 
-class KeywordsExtractorTopicRank(KeywordsExtractorBase):
-    def __init__(self, threshold=0.74, method='average', heuristic=None, **kwargs):
+class KeywordsExtractorRaKUn(KeywordsExtractorBase):
+    def __init__(self,
+                 distance_threshold=2,
+                 distance_method='editdistance',
+                 pretrained_embedding_path=None,
+                 num_keywords=10,
+                 pair_diff_length=2,
+                 bigram_count_threshold=2,
+                 num_tokens=[1,2],
+                 max_similar=3,
+                 max_occurrence=3,
+                 **kwargs):
         super().__init__(**kwargs)
-        self.name = kwargs.get('name', 'TopicRank')
-        self.threshold = threshold
-        self.method = method
-        self.heuristic = heuristic
+
+        self.name = kwargs.get('name', 'RaKUn')
         self.pos = {'NOUN', 'PROPN', 'ADJ'}
         self.stoplist = list(string.punctuation)
         self.stoplist += ['-lrb-', '-rrb-', '-lcb-', '-rcb-', '-lsb-', '-rsb-']
         self.stoplist += stopwords.words('english')
-        self.kw_extractor = pke.unsupervised.TopicRank()
+        # define the grammar for selecting the keyphrase candidates
+        self.grammar = "NP: {<ADJ>*<NOUN|PROPN>+}"
+
+        self.hyperparameters = {
+            'distance_threshold': distance_threshold,
+            'distance_method': distance_method,
+            'pretrained_embedding_path': pretrained_embedding_path,
+            'num_keywords': num_keywords,
+            'pair_diff_length': pair_diff_length,
+            'stopwords': self.stoplist,
+            'bigram_count_threshold': bigram_count_threshold,
+            'num_tokens': num_tokens,
+            'max_similar': max_similar,
+            'max_occurrence': max_occurrence,
+        }
+        self.kw_extractor = mrakun.RakunDetector(self.hyperparameters)
 
     def _process(self, text):
         # load the content of the document.
-        self.kw_extractor.load_document(
-            input=text,
-            language='en',
-        )
+        keywords = self.kw_extractor.find_keywords(text, input_type = "text")
 
-        # select the longest sequences of nouns and adjectives, that do
-        #    not contain punctuation marks or stopwords as candidates.
-        self.kw_extractor.candidate_selection(
-            pos=self.pos,
-            stoplist=self.stoplist,
-        )
-        num_keywords = len(self.kw_extractor.candidates)
+        return keywords
 
 
-        # build topics by grouping candidates with HAC (average linkage,
-        #    threshold of 1/4 of shared stems). Weight the topics using random
-        #    walk, and select the first occuring candidate from each topic.
-        if num_keywords > 0:
-            try:
-                self.kw_extractor.candidate_weighting(
-                    threshold=self.threshold,
-                    method=self.method,
-                    heuristic=self.heuristic,
-                )
-            except:
-                num_keywords = 0
+class KeywordsExtractorCombined(KeywordsExtractorBase):
+    def __init__(self,
+                 models=[],
+                 **kwargs):
+        super().__init__(**kwargs)
 
-        # get the 10-highest scored candidates as keyphrases
-        if num_keywords > 10:
-            keywords = self.kw_extractor.get_n_best(n=10)
-        elif num_keywords > 0:
-            keywords = self.kw_extractor.get_n_best(n=num_keywords)
-        else:
-            keywords = []
+        self.name = kwargs.get('name', 'Combined')
+        self.models = models
+
+        assert self.score_threshold == None
+
+    def _process(self, text):
+        keywords = []
+        for m in self.models:
+            words_and_scores = m._process(text)
+            if m.score_threshold:
+                words_and_scores = list(filter(
+                    lambda x: x[1] > m.score_threshold,
+                    words_and_scores
+                ))
+            keywords.extend(words_and_scores)
 
         return keywords
 
@@ -469,25 +605,34 @@ def phrase_match(ref_phrase, pred_phrase):
     ref_words = set(ref_phrase.split())
     pred_words = set(pred_phrase.split())
     matched_words = ref_words & pred_words
-    ratio_match = len(matched_words) / max(len(ref_words), 1)
-    return ratio_match
+    ratio_match_ref = len(matched_words) / max(len(ref_words), 1)
+    ratio_match_pred = len(matched_words) / max(len(pred_words), 1)
+    return ratio_match_ref, ratio_match_pred
 
 
 def evaluation_a_doc(ref_words, pred_words, ignore_case=True):
-    num_ref = len(ref_words)
-    num_pred = len(pred_words)
-    num_positive = 0
-
     if ignore_case:
         ref_words = [w.lower() for w in ref_words]
         pred_words = [w.lower() for w in pred_words]
 
+    ref_words = set(ref_words)
+    pred_words = set(pred_words)
+
+    num_ref = len(ref_words)
+    num_pred = len(pred_words)
+    matched_values_ref = {w: 0.0 for w in ref_words}
+    matched_values_pred = {w: 0.0 for w in pred_words}
+
     for r_w in ref_words:
         for p_w in pred_words:
-            num_positive += phrase_match(r_w, p_w)
+            v_ref, v_pred = phrase_match(r_w, p_w)
+            if v_ref > matched_values_ref[r_w]:
+                matched_values_ref[r_w] = v_ref
+            if v_pred > matched_values_pred[p_w]:
+                matched_values_pred[p_w] = v_pred
 
-    precision = num_positive / max(num_pred, 1.0)
-    recall = num_positive / max(num_ref, 1.0)
+    precision = sum(matched_values_pred.values()) / max(num_pred, 1.0)
+    recall = sum(matched_values_ref.values()) / max(num_ref, 1.0)
     F1 = 2*precision*recall/max((precision+recall), 1E-6)
     return precision, recall, F1
 
@@ -507,6 +652,7 @@ def evaluation_many_docs(ref_docs, pred_docs, ignore_case=True):
         all_precision.append(a_precision)
         all_recall.append(a_recall)
         all_f1.append(a_f1)
+
     return np.mean(all_precision), np.mean(all_recall), np.mean(all_f1)
 
 def collect_samples():
@@ -540,6 +686,22 @@ def collect_samples():
         json.dump(samples, fw, indent=2, default=json_util.default)
 
 
+def train_word_frequency():
+    # stoplist for filtering n-grams
+    stoplist = list(string.punctuation)
+    # stoplist += ['-lrb-', '-rrb-', '-lcb-', '-rcb-', '-lsb-', '-rsb-']
+    # stoplist += stopwords.words('english')
+
+    # compute df counts and store as n-stem -> weight values
+    pke.compute_document_frequency(
+        input_dir='../scratch/lda_text',
+        output_file='../scratch/tf_abs_2.tsv.gz',
+        extension='txt',  # input file extension
+        language='en',  # language of files
+        normalization="stemming",  # use porter stemmer
+        stoplist=stoplist
+    )
+
 def keyword_tester(keyword_extractors, out_path='../scratch/keywords.html'):
     html_head = ''
     html_body = ''
@@ -560,9 +722,9 @@ def keyword_tester(keyword_extractors, out_path='../scratch/keywords.html'):
         all_keywords['human_keywords_full'].append(human_keywords)
 
         abstract = KeywordsExtractorBase().clean_html_tag(abstract)
-        if 'body_text' in doc and isinstance(doc['body_text'], list):
-            for para in doc['body_text']:
-                abstract+='\n{}'.format(para['Text'])
+        # if 'body_text' in doc and isinstance(doc['body_text'], list):
+        #     for para in doc['body_text']:
+        #         abstract+='\n{}'.format(para['Text'])
 
         if 'human_keywords_in_abs' not in all_keywords:
             all_keywords['human_keywords_in_abs'] = []
@@ -648,29 +810,61 @@ def keyword_tester(keyword_extractors, out_path='../scratch/keywords.html'):
 if __name__ == '__main__':
     # collect_samples()
 
+    # train_word_frequency()
+
     keyword_tester(
         keyword_extractors=[
             KeywordsExtractorSumma(
+                name='Summa_0',
                 split=True,
-                scores=True
+                scores=True,
+                use_longest_phrase=True,
             ),
             KeywordsExtractorYake(
-                name='Yake_3',
-                max_ngram_size=3
-            ),
-            KeywordsExtractorYake(
-                name='Yake_2',
-                max_ngram_size=2
-            ),
-            KeywordsExtractorTfIdf(
+                name='Yake_20',
                 max_ngram_size=3,
+                window_size=1,
+                top=20,
+                use_longest_phrase=True,
             ),
-            KeywordsExtractorKPMiner(),
-            KeywordsExtractorSingleRank(),
-            KeywordsExtractorTopicRank(),
-            KeywordsExtractorTopicalPageRank(),
-            KeywordsExtractorPositionRank(),
-            KeywordsExtractorMultipartiteRank(),
+            # KeywordsExtractorTfIdf(
+            #     max_ngram_size=3,
+            #     # df='../rsc/tf_abs_2.tsv.gz',
+            # ),
+            # KeywordsExtractorKPMiner(
+            #     # df='../rsc/tf_abs_2.tsv.gz',
+            # ),
+            # KeywordsExtractorSingleRank(),
+            # KeywordsExtractorTopicRank(),
+            # KeywordsExtractorTopicalPageRank(
+            #     lda_model='../scratch/pke_lda_0',
+            # ),
+            # KeywordsExtractorPositionRank(),
+            # KeywordsExtractorMultipartiteRank(),
+            KeywordsExtractorRaKUn(
+                name='RaKUn_0',
+                distance_threshold=2,
+                pair_diff_length=2,
+                bigram_count_threhold=2,
+                num_tokens=[1,2,3],
+                max_similar=10,
+                max_occurrence=3,
+                score_threshold=None,
+                use_longest_phrase=True,
+            ),
+            KeywordsExtractorRaKUn(
+                name='RaKUn_3',
+                distance_threshold=2,
+                pair_diff_length=2,
+                bigram_count_threhold=2,
+                num_tokens=[1, 2, 3],
+                max_similar=10,
+                max_occurrence=3,
+                score_threshold=0.20,
+                use_longest_phrase=True,
+            ),
+
+
         ],
-        out_path='../scratch/keywords.html'
+        out_path='../scratch/keywords_test.html'
     )
