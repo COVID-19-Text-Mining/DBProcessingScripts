@@ -1,0 +1,2 @@
+d=`date +%m-%d-%Y`
+docker image build --build-arg COVID_HOST=$COVID_HOST --build-arg COVID_PASS=$COVID_PASS --build-arg COVID_USER=$COVID_USER --build-arg COVID_DB=$COVID_DB -t registry.spin.nersc.gov/perssongroup/covidscholar_parsing:$d .
