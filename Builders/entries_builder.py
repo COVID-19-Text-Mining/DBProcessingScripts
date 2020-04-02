@@ -3,11 +3,15 @@ import pymongo
 import sys
 import json
 import datetime
+import re
+from pprint import pprint
 
 client = pymongo.MongoClient(os.getenv("COVID_HOST"), username=os.getenv("COVID_USER"),
                              password=os.getenv("COVID_PASS"), authSource=os.getenv("COVID_DB"))
 db = client[os.getenv("COVID_DB")]
 
+#Rebuild the entire entries collection
+rebuild = False
 #Keys that are allowed in the entries database to keep it clean and minimal
 entries_keys = ['title',
     'authors',
@@ -66,9 +70,25 @@ def merge_documents(high_priority_doc, low_priority_doc):
         if date_bool_key not in merged_doc.keys():
             merged_doc[date_bool_key] = False
 
+    #Common starting text to abstracts that we want to clean
+    preambles = ["Abstract Background", "Abstract:", "Abstract", "Graphical Abstract Highlights d", "Resumen", "Résumé"]
     if 'abstract' in merged_doc.keys() and merged_doc['abstract'] is not None:
+        if isinstance(merged_doc['abstract'], list):
+            merged_doc['abstract'] = " ".join(merged_doc['abstract'])
+            
         if 'a b s t r a c t' in merged_doc['abstract']:
             merged_doc['abstract'] = merged_doc['abstract'].split('a b s t r a c t')[1]
+
+        try:
+            merged_doc['abstract'] = re.sub('^<jats:title>*<\/jats:title>', '', merged_doc['abstract'])
+            merged_doc['abstract'] = re.sub('<\/?jats:[^>]*>', '', merged_doc['abstract'])
+        except TypeError:
+            pprint(merged_doc['abstract'])
+        for preamble in preambles:
+            try:
+                merged_doc['abstract'] = re.sub('^{} '.format(preamble), '', merged_doc['abstract'])
+            except TypeError:
+                pprint(merged_doc['abstract'])
 
     return merged_doc
 
@@ -95,17 +115,21 @@ def document_priority_greater_than(doc1, doc2):
     if priority_dict[doc1['origin']] > priority_dict[doc1['origin']]:
         return True
     elif doc1['origin'] == doc2['origin']:
-        return doc1['last_updated'] > doc2['last_updated']
+        return doc1['last_updated'] >= doc2['last_updated']
     else:
         return False
 
 
 parsed_collections = [a+"_parsed" for a in origin_collections]
 
-last_entries_builder_sweep = db.metadata.find_one({'data': 'last_entries_builder_sweep'})['datetime']
+query = {'doi': {"$exists": True}, 'title': {"$exists": True}}
+if not rebuild:
+    last_entries_builder_sweep = db.metadata.find_one({'data': 'last_entries_builder_sweep'})['datetime']
+    query['_bt'] = {'$gte': last_entries_builder_sweep}
+
 for collection in parsed_collections:
     print(collection)
-    for doc in db[collection].find({'doi': {"$exists": True}, 'title': {"$exists": True}, '_bt': {'$gte': last_entries_builder_sweep}}):
+    for doc in db[collection].find(query):
         #doi and title are mandatory
 
         existing_entry = db.entries.find_one({"doi": doc['doi']})
@@ -126,7 +150,11 @@ for collection in parsed_collections:
 #Uploading and parsing the PDFs takes a while, and
 #so we do this to let people see their submission up sooner
 #This is always the lowest priority
-for doc in db.google_form_submissions.find({'doi': {"$exists": True}, 'title': {"$exists": True}, 'last_updated': {'$gte': last_entries_builder_sweep}}):
+if not rebuild:
+    query["last_updated"] = {'$gte': last_entries_builder_sweep}
+    del(query['_bt'])
+
+for doc in db.google_form_submissions.find(query):
 
     existing_entry = db.entries.find_one({"doi": doc['doi']})
     if existing_entry:
