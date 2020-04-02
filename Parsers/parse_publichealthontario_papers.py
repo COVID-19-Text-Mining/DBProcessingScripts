@@ -40,6 +40,7 @@ def parse_synopsis_doc(doc, db):
     parsed_doc = dict()
     parsed_doc['title'] = clean_title(doc['Title'])
     parsed_doc['link'] = doc['Link']
+    parsed_doc['synopsis_link'] = doc['Synopsis_Link']
     parsed_doc['origin'] = "Scraper_public_health_ontario"
     parsed_doc['journal_string'] = doc['Journal_String'].strip(' \t\r.')
     parsed_doc['authors'] = doc["Authors"]
@@ -65,7 +66,7 @@ def parse_synopsis_doc(doc, db):
     sections = {}
     last_sec = None
     for p in paragraphs:
-        is_heading = 18 < p['bbox'][3] - p['bbox'][1] and p['bbox'][2] - p['bbox'][0] < 200
+        is_heading = 18 < p['bbox'][3] - p['bbox'][1] and p['bbox'][2] - p['bbox'][0] < 230
         if is_heading:
             last_sec = p['text'].lower()
             sections[last_sec] = []
