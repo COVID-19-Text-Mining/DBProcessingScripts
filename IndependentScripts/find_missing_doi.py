@@ -1,9 +1,5 @@
 import threading
 
-import requests
-import json
-import urllib
-import glob
 from pprint import pprint
 import re
 from datetime import datetime
@@ -42,6 +38,7 @@ def doi_existence_stat(mongo_db):
         })
         query_w_crossref_tried = col.find({'tried_crossref_doi': True})
         query_w_csv_tried = col.find({'tried_csv_doi': True})
+        query_w_cord_id = col.find({'paper_id': {'$exists': True}})
 
         query_wo_doi_no_cr_csv = col.find({
             'doi': {'$exists': False},
@@ -64,6 +61,10 @@ def doi_existence_stat(mongo_db):
             'abstract': {'$exists': True},
             '$where': 'this.metadata.title.length == 0 & this.abstract.length == 0',
         })
+        query_wo_doi_cord_id_empty = col.find({
+            'doi': {'$exists': False},
+            'paper_id': {'$exists': False},
+        })
 
         print('col_name', col_name)
         print('col.count()', col.count())
@@ -71,10 +72,12 @@ def doi_existence_stat(mongo_db):
         print('query_w_doi_len_gt_0', query_w_doi_len_gt_0.count())
         print('query_w_crossref_tried', query_w_crossref_tried.count())
         print('query_w_csv_tried', query_w_csv_tried.count())
+        print('query_w_cord_id', query_w_cord_id.count())
         print('query_wo_doi_no_cr_csv', query_wo_doi_no_cr_csv.count())
         print('query_wo_doi_title_empty', query_wo_doi_title_empty.count())
         print('query_wo_doi_abs_empty', query_wo_doi_abs_empty.count())
         print('query_wo_doi_title_abs_empty', query_wo_doi_title_abs_empty.count())
+        print('query_wo_doi_cord_id_empty', query_wo_doi_cord_id_empty.count())
         print()
 
 
@@ -773,6 +776,109 @@ def doi_match_a_batch_by_crossref(task_batch):
             print(e)
             raise e
 
+def doi_match_a_batch_by_csv_new(task_batch):
+    mongo_db = get_mongo_db('../config.json')
+    csv_data = pd.read_csv(
+        '../rsc/metadata.csv',
+        dtype={
+            'pubmed_id': str,
+            'pmcid': str,
+            'publish_time': str,
+            'Microsoft Academic Paper ID': str,
+        }
+    )
+    csv_data = csv_data.fillna('')
+    csv_data['title'] = csv_data['title'].str.lower()
+    data = csv_data[csv_data['sha']!='']
+    print('data.shape', data.shape)
+    for i, task in enumerate(task_batch):
+        if i % 10 == 0:
+            print('thread', threading.currentThread().getName())
+            print('processing the {}th out of {}'.format(i, len(task_batch)))
+        col = mongo_db[task['col_name']]
+
+        # get doc
+        doc = col.find_one({'_id': task['_id']})
+        if doc is None:
+            continue
+
+        doc_updated = False
+
+        # get cord_id
+        cord_id = None
+        if ('paper_id' in doc and isinstance(doc['paper_id'], str) and len(doc['paper_id']) > 0):
+            cord_id = doc['paper_id']
+
+        # query csv_data
+        matched_item = None
+
+        # match by title
+        if cord_id is not None and matched_item is None:
+            data_w_cord_id = csv_data[csv_data['sha'] == cord_id]
+
+            if len(data_w_cord_id) == 1:
+                # print('raw_title: ', raw_title)
+                # print('title', title)
+                # print("csv_title", sorted_data.iloc[0]['title'])
+                # print('similarity', sorted_similarity.iloc[0])
+                # print(sorted_similarity.head(10))
+                # print('len(raw_title)', len(raw_title))
+                # print('doi', sorted_data.iloc[0]['doi'])
+                # print()
+                #
+                # if (len(title) > LEAST_TITLE_LEN
+                #     and len(sorted_data.iloc[0]['title']) > LEAST_TITLE_LEN
+                #     and sorted_similarity.iloc[0] > LEAST_TITLE_SIMILARITY):
+                matched_item = correct_pd_dict(data_w_cord_id.iloc[0].to_dict())
+
+
+            elif len(data_w_cord_id) > 1:
+                print('more than 1 entries matched!')
+                print('cord_id', cord_id)
+                print(', '.join(list(data_w_cord_id['sha'])))
+
+            else:
+                print('no entry matched!')
+                print('cord_id', cord_id)
+
+
+        if matched_item is None:
+            print('no entry matched!')
+            print('cord_id', cord_id)
+            print()
+
+        # update db
+        set_params = {
+            "tried_csv_doi": True,
+            'last_updated': datetime.now(),
+        }
+
+        # update doi found
+        if matched_item is not None:
+            print("FOUND")
+            print()
+            set_params['csv_raw_result'] = matched_item
+            if (matched_item.get('doi')
+                and isinstance(matched_item['doi'], str)
+                and len(matched_item['doi'].strip())>0
+            ):
+                set_params['doi'] = matched_item['doi'].strip()
+
+            doc_updated = True
+
+        try:
+            col.find_one_and_update(
+                {"_id": doc['_id']},
+                {
+                    "$set": set_params,
+                }
+            )
+        except Exception as e:
+            print('matched_item')
+            pprint(matched_item)
+            print(e)
+            raise e
+
 
 def doi_match_a_batch_by_csv(task_batch):
     mongo_db = get_mongo_db('../config.json')
@@ -1136,19 +1242,61 @@ def bar(mongo_db, num_cores=1):
         p.close()
         p.join()
 
+def misaka(mongo_db, num_cores=1):
+    for col_name in mongo_db.collection_names():
+        # if col_name != 'CORD_custom_license':
+        #     continue
+        if col_name not in PAPER_COLLECTIONS:
+            continue
+        print('col_name', col_name)
+        col = mongo_db[col_name]
+        query = col.find(
+            {
+                # "tried_csv_doi": {"$exists": True},
+                # "doi": {"$exists": False},
+                "csv_raw_result": {"$exists": False},
+            },
+            {
+                '_id': True
+            }
+        )
+        # used
+        all_tasks = list(query)
+        for task in all_tasks:
+            task['col_name'] = col_name
+        print('len(all_tasks)', len(all_tasks))
+        print(all_tasks)
+
+        parallel_arguments = []
+        num_task_per_batch = int(len(all_tasks) / num_cores)
+        print('num_task_per_batch', num_task_per_batch)
+        for i in range(num_cores):
+            if i < num_cores - 1:
+                parallel_arguments.append((all_tasks[i * num_task_per_batch: (i + 1) * num_task_per_batch],))
+            else:
+                parallel_arguments.append((all_tasks[i * num_task_per_batch:], ))
+
+        p = mp.Pool(processes=num_cores)
+        all_summary = p.starmap(doi_match_a_batch_by_csv_new, parallel_arguments)
+        p.close()
+        p.join()
+
 
 if __name__ == '__main__':
     db = get_mongo_db('../config.json')
     print(db.collection_names())
 
-    doi_existence_stat(db)
+    # doi_existence_stat(db)
 
     # check_doc_wo_doi(db)
 
     # add_useful_fields(db)
 
-    # assign_suggested_doi(db)
+    assign_suggested_doi(db)
 
     # foo(db, num_cores=4)
 
     # bar(db, num_cores=4)
+
+    # misaka(db, num_cores=4)
+
