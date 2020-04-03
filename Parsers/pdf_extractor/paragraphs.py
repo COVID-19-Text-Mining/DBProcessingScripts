@@ -1,4 +1,5 @@
 import re
+import string
 from collections import Counter
 from io import StringIO
 
@@ -73,7 +74,7 @@ LTLayoutContainer.group_textlines = group_textlines
 class TextHandler(TextConverter):
     def __init__(self, rsrcmgr):
         super(TextHandler, self).__init__(
-            rsrcmgr, StringIO(), laparams=LAParams(line_margin=2.5))
+            rsrcmgr, StringIO(), laparams=LAParams(char_margin=1.0, line_margin=2.5))
 
         self.pages = []
 
@@ -108,11 +109,15 @@ class TextHandler(TextConverter):
             ))
 
         # Drop number only paragraphs
+        printable = set(string.printable)
         for page in self.pages:
-            page[:] = list(filter(
-                lambda x: len(re.findall(r'[a-zA-Z]', x['text'])) > 0.5 * len(x['text']),
-                page
-            ))
+            new_page = []
+            for item in page:
+                normalized_text = ''.join((filter(lambda k: k in printable, item['text']))).strip()
+                words = re.findall(r'[a-zA-Z]', item['text'])
+                if len(words) > 0.5 * len(normalized_text):
+                    new_page.append(item)
+            page[:] = new_page
 
         # Convert newlines and excessive whitespaces
         for page in self.pages:
@@ -122,7 +127,7 @@ class TextHandler(TextConverter):
         return self.pages
 
 
-def extract_paragraphs_pdf(pdf_file):
+def extract_paragraphs_pdf(pdf_file, return_dicts=False, only_printable=True):
     """
     pdf_file is a file-like object.
     This function will return lists of plain-text paragraphs."""
@@ -143,16 +148,39 @@ def extract_paragraphs_pdf(pdf_file):
 
     paragraphs = []
 
+    printable = set(string.printable)
     for i, page in enumerate(device.get_true_paragraphs()):
         for j, p in enumerate(sorted(page, key=paragraph_pos_rank)):
-            text = p['text'].strip()
+            text = p['text']
+
+            if only_printable:
+                text = ''.join(filter(lambda x: x in printable, text))
+
+            text = text.strip()
+
+            indention_level = int(p['bbox'][0] / 10)
 
             if j == 0 and len(paragraphs) > 0:
-                if (not is_ending_char(paragraphs[-1][-1]) and
-                        not text[0].isupper()):
-                    paragraphs[-1] = paragraphs[-1] + ' ' + text
-                    continue
-            paragraphs.append(text)
+                last_paragraph = paragraphs[-1]
+                if return_dicts:
+                    last_paragraph = last_paragraph['text']
+                should_join = (not is_ending_char(last_paragraph[-1]) and
+                               not text[0].isupper())
+
+                if should_join:
+                    text = last_paragraph + ' ' + text
+                    if return_dicts:
+                        indention_level = paragraphs[-1]['indention_level']
+                    del paragraphs[-1]
+
+            if return_dicts:
+                paragraphs.append({
+                    'text': text,
+                    'indention_level': indention_level,
+                    'bbox': p['bbox']
+                })
+            else:
+                paragraphs.append(text)
 
     return paragraphs
 
