@@ -11,7 +11,7 @@ client = pymongo.MongoClient(os.getenv("COVID_HOST"), username=os.getenv("COVID_
 db = client[os.getenv("COVID_DB")]
 
 #Rebuild the entire entries collection
-rebuild = False
+rebuild = True
 #Keys that are allowed in the entries database to keep it clean and minimal
 entries_keys = ['title',
     'authors',
@@ -58,11 +58,14 @@ def merge_documents(high_priority_doc, low_priority_doc):
             for doc in [high_priority_doc, low_priority_doc]:
                 if k in doc.keys():
                     if isinstance(doc[k], str):
-                        merged_category.append(doc[k])
+                        if not doc[k] in merged_category:
+                            merged_category.append(doc[k])
                     elif isinstance(doc[k], list):
-                        merged_category += doc[k]
+                        for e in doc[k]:
+                            if not e in merged_category:
+                                merged_category.append(e)
 
-            merged_doc[k] = [anno.strip() for anno in merged_category]
+            merged_doc[k] = list(set([anno.strip() for anno in merged_category]))
 
     merged_doc['last_updated'] = datetime.datetime.now()
 
@@ -90,12 +93,21 @@ def merge_documents(high_priority_doc, low_priority_doc):
             except TypeError:
                 pprint(merged_doc['abstract'])
 
+    if 'title' in merged_doc.keys() and merged_doc['title'] is not None:
+        if isinstance(merged_doc['title'], list):
+            merged_doc['title'] = " ".join(merged_doc['title'])
+
+    if 'journal' in merged_doc.keys() and merged_doc['journal'] is not None:
+        if isinstance(merged_doc['journal'], list):
+            merged_doc['journal'] = " ".join(merged_doc['journal'])
+
     return merged_doc
 
 #Collections are listed in priority order
 origin_collections = [
   'google_form_submissions',  
   'Scraper_connect_biorxiv_org',
+  'Scraper_chemrxiv_org',
   'CORD_noncomm_use_subset',
   'CORD_comm_use_subset',
   'CORD_biorxiv_medrxiv',
@@ -132,7 +144,7 @@ for collection in parsed_collections:
     for doc in db[collection].find(query):
         #doi and title are mandatory
 
-        existing_entry = db.entries.find_one({"doi": doc['doi']})
+        existing_entry = db.entries_new.find_one({"doi": doc['doi']})
         if existing_entry:
         #Check to see if we already have a doc with this DOI in the entries collection
             if document_priority_greater_than(existing_entry, doc):
@@ -143,8 +155,8 @@ for collection in parsed_collections:
 
         else:
             #otherwise use this to make a new entry
-            insert_doc = {k:v for k,v in doc.items() if k in entries_keys}
-        db.entries_trial.update_one({"doi": insert_doc['doi']}, {"$set": insert_doc}, upsert=True)
+            insert_doc = merge_documents(doc, dict())
+        db.entries_new.update_one({"doi": insert_doc['doi']}, {"$set": insert_doc}, upsert=True)
 
 #We'll also check the raw google_form_submissions
 #Uploading and parsing the PDFs takes a while, and
@@ -156,17 +168,17 @@ if not rebuild:
 
 for doc in db.google_form_submissions.find(query):
 
-    existing_entry = db.entries.find_one({"doi": doc['doi']})
+    existing_entry = db.entries_new.find_one({"doi": doc['doi']})
     if existing_entry:
     #Check to see if we already have a doc with this DOI in the entries collection
     #This is always the lowest priority doc
         insert_doc = merge_documents(existing_entry, doc)
     else:
         #otherwise use this to make a new entry
-        insert_doc = {k:v for k,v in doc.items() if k in entries_keys}
+        insert_doc = merge_documents(doc, dict())
         #Raw 'google form submissions' collection doesn't have an origin field
         insert_doc['origin'] = 'google_form_submissions'
-    db.entries.update_one({"doi": insert_doc['doi']}, {"$set": insert_doc}, upsert=True)
+    db.entries_new.update_one({"doi": insert_doc['doi']}, {"$set": insert_doc}, upsert=True)
 
 #Finally, let's log that we've done a sweep so we don't have to go back over entries
 db.metadata.update_one({'data': 'last_entries_builder_sweep'}, {"$set": {"datetime": datetime.datetime.now()}})
