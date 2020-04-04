@@ -11,7 +11,7 @@ client = pymongo.MongoClient(os.getenv("COVID_HOST"), username=os.getenv("COVID_
 db = client[os.getenv("COVID_DB")]
 
 #Rebuild the entire entries collection
-rebuild = True
+rebuild = False
 #Keys that are allowed in the entries database to keep it clean and minimal
 entries_keys = ['title',
     'authors',
@@ -112,7 +112,8 @@ origin_collections = [
   'CORD_comm_use_subset',
   'CORD_biorxiv_medrxiv',
   'CORD_custom_license',
-  'CORD_metadata']
+  'CORD_metadata',
+  "Empty"]
 
 def document_priority_greater_than(doc1, doc2):
     #Compare the priority of doc1 and doc2 based on their origin collection
@@ -124,7 +125,7 @@ def document_priority_greater_than(doc1, doc2):
 
     priority_dict = {c:-i for i,c in enumerate(origin_collections)}
 
-    if priority_dict[doc1['origin']] > priority_dict[doc1['origin']]:
+    if priority_dict[doc1['origin']] > priority_dict[doc2['origin']]:
         return True
     elif doc1['origin'] == doc2['origin']:
         return doc1['last_updated'] >= doc2['last_updated']
@@ -144,19 +145,19 @@ for collection in parsed_collections:
     for doc in db[collection].find(query):
         #doi and title are mandatory
 
-        existing_entry = db.entries_new.find_one({"doi": doc['doi']})
+        existing_entry = db.entries.find_one({"doi": doc['doi']})
         if existing_entry:
         #Check to see if we already have a doc with this DOI in the entries collection
             if document_priority_greater_than(existing_entry, doc):
                 #Figure out which doc has higher priority
                 insert_doc = merge_documents(existing_entry, doc)
             else:
-                insert_doc = merge_documents(doc, existing_entry)
+                insert_doc = merge_documents(doc, {"origin": "Empty"})
 
         else:
             #otherwise use this to make a new entry
             insert_doc = merge_documents(doc, dict())
-        db.entries_new.update_one({"doi": insert_doc['doi']}, {"$set": insert_doc}, upsert=True)
+        db.entries.update_one({"doi": insert_doc['doi']}, {"$set": insert_doc}, upsert=True)
 
 #We'll also check the raw google_form_submissions
 #Uploading and parsing the PDFs takes a while, and
@@ -168,17 +169,17 @@ if not rebuild:
 
 for doc in db.google_form_submissions.find(query):
 
-    existing_entry = db.entries_new.find_one({"doi": doc['doi']})
+    existing_entry = db.entries.find_one({"doi": doc['doi']})
     if existing_entry:
     #Check to see if we already have a doc with this DOI in the entries collection
     #This is always the lowest priority doc
         insert_doc = merge_documents(existing_entry, doc)
     else:
         #otherwise use this to make a new entry
-        insert_doc = merge_documents(doc, dict())
+        insert_doc = merge_documents(doc, {"origin": "Empty"})
         #Raw 'google form submissions' collection doesn't have an origin field
         insert_doc['origin'] = 'google_form_submissions'
-    db.entries_new.update_one({"doi": insert_doc['doi']}, {"$set": insert_doc}, upsert=True)
+    db.entries.update_one({"doi": insert_doc['doi']}, {"$set": insert_doc}, upsert=True)
 
 #Finally, let's log that we've done a sweep so we don't have to go back over entries
 db.metadata.update_one({'data': 'last_entries_builder_sweep'}, {"$set": {"datetime": datetime.datetime.now()}})

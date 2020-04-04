@@ -94,16 +94,16 @@ for i, entry in enumerate(entries):
     # else:
    
     if is_covid19_model(entry) is not None:
-        entry['is_covid19'] = is_covid19_model(entry) # returns float value for score from model 
-    elif if len(entry['category_human']) > 0:
-        entry['is_covid19'] = "COVID-19/SARS-CoV2/nCoV-2019" in entry['category_human']
+        entry['is_covid19_ml'] = is_covid19_model(entry) # returns float value for score from model 
+    elif len(entry['category_human']) > 0:
+        entry['is_covid19_ml'] = int("COVID-19/SARS-CoV2/nCoV-2019" in entry['category_human'])
     else:
-        entry['is_covid19'] = is_covid19(entry)
-    if entry['is_covid19']:
+        entry['is_covid19_ml'] = is_covid19(entry)
+    if entry['is_covid19_ml'] > 0.5:
         covid_count += 1
-
+    # print(entry['is_covid19_ml'])
 
 # print(covid_count)
-    db.entries.update_one({"_id": entry["_id"]}, {"$set": {"is_covid19": entry["is_covid19"], "last_updated": datetime.datetime.now()}})
+    db.entries.update_one({"_id": entry["_id"]}, {"$set": {"is_covid19_ml": entry["is_covid19_ml"], "last_updated": datetime.datetime.now()}})
 
 # db.metadata.update_one({'data':"last_keyword_sweep"}, {"$set": {"datetime": datetime.datetime.now()}})
