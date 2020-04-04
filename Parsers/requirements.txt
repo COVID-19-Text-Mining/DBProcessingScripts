@@ -6,3 +6,4 @@ maggma
 pdfminer
 pymongo
 regex
+git+https://github.com/CederGroupHub/LimeSoup.git
