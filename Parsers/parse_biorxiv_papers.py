@@ -26,20 +26,20 @@ def parse_biorxiv_doc(doc, db):
     parsed_doc['has_month'] = True
     parsed_doc['has_day'] = True
 
-    paper_fs = gridfs.GridFS(
-        db, collection='Scraper_connect_biorxiv_org_fs')
-    pdf_file = paper_fs.get(doc['PDF_gridfs_id'])
+    # paper_fs = gridfs.GridFS(
+    #     db, collection='Scraper_connect_biorxiv_org_fs')
+    # pdf_file = paper_fs.get(doc['PDF_gridfs_id'])
 
-    try:
-        paragraphs = extract_paragraphs_pdf(BytesIO(pdf_file.read()))
-    except Exception as e:
-        print('Failed to extract PDF %s(%r) (%r)' % (doc['Doi'], doc['PDF_gridfs_id'], e))
-        traceback.print_exc()
-        paragraphs = []
+    # try:
+    #     paragraphs = extract_paragraphs_pdf(BytesIO(pdf_file.read()))
+    # except Exception as e:
+    #     print('Failed to extract PDF %s(%r) (%r)' % (doc['Doi'], doc['PDF_gridfs_id'], e))
+    #     traceback.print_exc()
+    #     paragraphs = []
 
-    parsed_doc['body_text'] = [{
-        'section_heading': None,
-        'text': x
-    } for x in paragraphs]
+    # parsed_doc['body_text'] = [{
+    #     'section_heading': None,
+    #     'text': x
+    # } for x in paragraphs]
 
     return parsed_doc
