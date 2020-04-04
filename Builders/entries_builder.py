@@ -58,11 +58,14 @@ def merge_documents(high_priority_doc, low_priority_doc):
             for doc in [high_priority_doc, low_priority_doc]:
                 if k in doc.keys():
                     if isinstance(doc[k], str):
-                        merged_category.append(doc[k])
+                        if not doc[k] in merged_category:
+                            merged_category.append(doc[k])
                     elif isinstance(doc[k], list):
-                        merged_category += doc[k]
+                        for e in doc[k]:
+                            if not e in merged_category:
+                                merged_category.append(e)
 
-            merged_doc[k] = [anno.strip() for anno in merged_category]
+            merged_doc[k] = list(set([anno.strip() for anno in merged_category]))
 
     merged_doc['last_updated'] = datetime.datetime.now()
 
@@ -90,17 +93,27 @@ def merge_documents(high_priority_doc, low_priority_doc):
             except TypeError:
                 pprint(merged_doc['abstract'])
 
+    if 'title' in merged_doc.keys() and merged_doc['title'] is not None:
+        if isinstance(merged_doc['title'], list):
+            merged_doc['title'] = " ".join(merged_doc['title'])
+
+    if 'journal' in merged_doc.keys() and merged_doc['journal'] is not None:
+        if isinstance(merged_doc['journal'], list):
+            merged_doc['journal'] = " ".join(merged_doc['journal'])
+
     return merged_doc
 
 #Collections are listed in priority order
 origin_collections = [
   'google_form_submissions',  
   'Scraper_connect_biorxiv_org',
+  'Scraper_chemrxiv_org',
   'CORD_noncomm_use_subset',
   'CORD_comm_use_subset',
   'CORD_biorxiv_medrxiv',
   'CORD_custom_license',
-  'CORD_metadata']
+  'CORD_metadata',
+  "Empty"]
 
 def document_priority_greater_than(doc1, doc2):
     #Compare the priority of doc1 and doc2 based on their origin collection
@@ -112,7 +125,7 @@ def document_priority_greater_than(doc1, doc2):
 
     priority_dict = {c:-i for i,c in enumerate(origin_collections)}
 
-    if priority_dict[doc1['origin']] > priority_dict[doc1['origin']]:
+    if priority_dict[doc1['origin']] > priority_dict[doc2['origin']]:
         return True
     elif doc1['origin'] == doc2['origin']:
         return doc1['last_updated'] >= doc2['last_updated']
@@ -139,12 +152,12 @@ for collection in parsed_collections:
                 #Figure out which doc has higher priority
                 insert_doc = merge_documents(existing_entry, doc)
             else:
-                insert_doc = merge_documents(doc, existing_entry)
+                insert_doc = merge_documents(doc, {"origin": "Empty"})
 
         else:
             #otherwise use this to make a new entry
-            insert_doc = {k:v for k,v in doc.items() if k in entries_keys}
-        db.entries_trial.update_one({"doi": insert_doc['doi']}, {"$set": insert_doc}, upsert=True)
+            insert_doc = merge_documents(doc, dict())
+        db.entries.update_one({"doi": insert_doc['doi']}, {"$set": insert_doc}, upsert=True)
 
 #We'll also check the raw google_form_submissions
 #Uploading and parsing the PDFs takes a while, and
@@ -163,7 +176,7 @@ for doc in db.google_form_submissions.find(query):
         insert_doc = merge_documents(existing_entry, doc)
     else:
         #otherwise use this to make a new entry
-        insert_doc = {k:v for k,v in doc.items() if k in entries_keys}
+        insert_doc = merge_documents(doc, {"origin": "Empty"})
         #Raw 'google form submissions' collection doesn't have an origin field
         insert_doc['origin'] = 'google_form_submissions'
     db.entries.update_one({"doi": insert_doc['doi']}, {"$set": insert_doc}, upsert=True)
