@@ -5,11 +5,8 @@ Created on Fri Apr  3 13:36:44 2020
 @author: elise
 """
 
-import json
-import re
 
-with open('entries_04032020.json', 'r', encoding='utf8') as json_file:
-    data = [json.loads(line) for line in json_file]
+import re
 
 
 def remove_pre_proof(title):
@@ -38,6 +35,7 @@ def remove_html(abstract):
     else:
         return abstract
 
+    
 def clean_data(data):
     cleaned_data = data
     for i in cleaned_data:
@@ -47,5 +45,4 @@ def clean_data(data):
             i['journal'] = 'PLOS ONE'
     return cleaned_data
 
-clean_data(data)
     
