@@ -33,7 +33,52 @@ entries_keys = ['title',
     'has_year',
     'has_month',
     'has_day',
+    'is_pre_proof'
     ]
+
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Apr  3 13:36:44 2020
+
+@author: elise
+"""
+def remove_pre_proof(title):
+    clean_title = title.replace('Journal Pre-proofs', ' ')
+    clean_title = clean_title.replace('Journal Pre-proof', ' ')
+    clean_title = clean_title.strip()
+    if len(clean_title) == 0:
+        clean_title = None
+    return clean_title
+
+
+def add_pre_proof_and_clean(entry):
+    if entry['title'] != None and 'Journal Pre-proof' in entry['title']:
+        entry['is_pre_proof'] = True
+        entry['title'] = remove_pre_proof(entry['title'])
+        
+    else:
+        entry['is_pre_proof'] = False
+    return entry
+
+def remove_html(abstract):
+    #necessary to check this to avoid removing text between less than and greater than signs
+    if abstract is not None and bool(re.search('<.*?>.*?</.*?>', abstract)):
+        clean_abstract = re.sub('<.*?>', '', abstract)
+        return clean_abstract
+    else:
+        return abstract
+
+    
+def clean_data(doc):
+    cleaned_doc = doc
+    cleaned_doc = add_pre_proof_and_clean(cleaned_doc)
+    cleaned_doc['abstract'] = remove_html('abstract')
+    if cleaned_doc['journal'] == 'PLoS ONE':    
+        cleaned_doc['journal'] = 'PLOS ONE'
+
+    return cleaned_doc
+
+    
 
 def merge_documents(high_priority_doc, low_priority_doc):
     #Merge documents from two different source collections
@@ -103,6 +148,7 @@ def merge_documents(high_priority_doc, low_priority_doc):
         if isinstance(merged_doc['journal'], list):
             merged_doc['journal'] = " ".join(merged_doc['journal'])
 
+    merged_doc = clean_data(merged_doc)
     return merged_doc
 
 #Collections are listed in priority order
