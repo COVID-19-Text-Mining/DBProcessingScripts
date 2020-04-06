@@ -47,6 +47,7 @@ def clean_title(title):
 
 }
 """
+       
 def parse_cord_doc(doc, collection_name):
     parsed_doc = dict()
     parsed_doc['title'] = doc['metadata']['title']
@@ -154,7 +155,10 @@ def parse_cord_doc(doc, collection_name):
             try:
                 parsed_doc['publication_date'] = datetime.datetime.strptime(doc['csv_raw_result']['publish_time'],'%Y %b %d')
             except ValueError:
-                parsed_doc['publication_date'] = datetime.datetime.strptime(doc['csv_raw_result']['publish_time'],'%Y %b')
+                try:
+                    parsed_doc['publication_date'] = datetime.datetime.strptime(doc['csv_raw_result']['publish_time'],'%Y %b')
+                except ValueError:
+                    parsed_doc['publication_date'] = datetime.datetime.strptime(doc['csv_raw_result']['publish_time'],'%Y')
                 
 
     if 'abstract' in parsed_doc.keys() and parsed_doc['abstract'] is not None:
