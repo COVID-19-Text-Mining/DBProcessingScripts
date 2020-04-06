@@ -11,7 +11,7 @@ client = pymongo.MongoClient(os.getenv("COVID_HOST"), username=os.getenv("COVID_
 db = client[os.getenv("COVID_DB")]
 
 #Rebuild the entire entries collection
-rebuild = False
+rebuild = True
 #Keys that are allowed in the entries database to keep it clean and minimal
 entries_keys = ['title',
     'authors',
@@ -42,7 +42,7 @@ def merge_documents(high_priority_doc, low_priority_doc):
     merged_doc = dict()
     for k in entries_keys:
         #Treat human annotations separately - always merge them into a list
-        if k not in ['summary_human', 'keywords', 'category_human', 'category_human']:
+        if k not in ['summary_human', 'keywords', 'keywords_ML', 'category_human', 'category_human']:
     
             #First fill in what we can from high_priority_doc
             if k in high_priority_doc.keys() and high_priority_doc[k] is not None and high_priority_doc[k] not in ["", []]:
@@ -75,6 +75,8 @@ def merge_documents(high_priority_doc, low_priority_doc):
 
     #Common starting text to abstracts that we want to clean
     preambles = ["Abstract Background", "Abstract:", "Abstract", "Graphical Abstract Highlights d", "Resumen", "Résumé"]
+    elsevier_preamble = "publicly funded repositories, such as the WHO COVID database with rights for unrestricted research re-use and analyses in any form or by any means with acknowledgement of the original source. These permissions are granted for free by Elsevier for as long as the COVID-19 resource centre remains active."
+    preambles.append(elsevier_preamble)
     if 'abstract' in merged_doc.keys() and merged_doc['abstract'] is not None:
         if isinstance(merged_doc['abstract'], list):
             merged_doc['abstract'] = " ".join(merged_doc['abstract'])
@@ -113,7 +115,7 @@ origin_collections = [
   'CORD_biorxiv_medrxiv',
   'CORD_custom_license',
   'CORD_metadata',
-  "Empty"]
+  "Elsevier_corona_xml"]
 
 def document_priority_greater_than(doc1, doc2):
     #Compare the priority of doc1 and doc2 based on their origin collection
@@ -123,7 +125,20 @@ def document_priority_greater_than(doc1, doc2):
     #We don't handle the case where either doc doesn't have an origin
     #because we should definitely throw an exception when a ghost paper appears
 
-    priority_dict = {c:-i for i,c in enumerate(origin_collections)}
+    origin_priority = [
+      'google_form_submissions',  
+      "Elsevier_corona_xml",
+      'Scraper_connect_biorxiv_org',
+      'Scraper_chemrxiv_org',
+      'CORD_noncomm_use_subset',
+      'CORD_comm_use_subset',
+      'CORD_biorxiv_medrxiv',
+      'CORD_custom_license',
+      'CORD_metadata',
+      "Empty"]
+
+    priority_dict = {c:-i for i,c in enumerate(origin_priority)}
+    priority_dict['Scraper_Elsevier_corona'] = priority_dict['Elsevier_corona_xml']
 
     if priority_dict[doc1['origin']] > priority_dict[doc2['origin']]:
         return True

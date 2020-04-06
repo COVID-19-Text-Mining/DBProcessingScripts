@@ -62,6 +62,8 @@ def parse_elsevier_doc(doc, db):
     #     'text': x
     # } for x in paragraphs]
 
+    #Needed for builder to be happy
+    parsed_doc['mtime'] = doc['mtime']
     return parsed_doc
 
 
