@@ -1,8 +1,9 @@
-pymongo
-pprint
-regex
+beautifulsoup4
 google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
-pdfminer
 maggma
+pdfminer
+pymongo
+regex
+git+https://github.com/CederGroupHub/LimeSoup.git
