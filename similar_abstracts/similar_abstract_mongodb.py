@@ -12,6 +12,17 @@ from pretokenize import PreTokenize
 logger = logging.getLogger(__name__)
 
 
+def estimate_epoch(file_size, time=100):
+    """
+    a empirical method to estimate number of iterations depend on the size of corpus
+    """
+    slope = 1.75e-8
+    epoch = time / file_size / slope
+    if epoch <= 20:
+        epoch = 20
+    return epoch
+
+
 class AbstractSimilarity:
     # general configurations
     n = 3  # the number of relevant abstracts to store
@@ -35,7 +46,7 @@ class AbstractSimilarity:
         "lr": 0.05,  # learning rate
         "dim": 300,  # vector dim
         "ws": 5,  # window size
-        "epoch": 200,  # iteration number
+        "epoch": 0,  # iteration number
         "minCount": 5,
         "minn": 3,
         "maxn": 6,
@@ -50,7 +61,7 @@ class AbstractSimilarity:
         self.model_path = model_path
         try:
             self.model = fasttext.load_model(self.model_path)
-        except ValueError and FileNotFoundError:
+        except (ValueError, FileNotFoundError):
             logger.warning("No proper model file found. Please run train method first.")
             self.model = None
 
@@ -59,6 +70,11 @@ class AbstractSimilarity:
         update the language model
         """
         self.model = None  # remove the old model (for saving memory)
+        
+        fasttext_dir = os.getenv("FASTTEXT_DIR")
+
+        if fasttext_dir is None:
+            raise TypeError("Env variable FASTTEXT_DIR should be set first.")
 
         current_time = datetime.datetime.now()
         file_name = "fasttext_{hash_code}_{year}_{month}_{day}".format(hash_code=abs(hash(current_time)),
@@ -75,6 +91,7 @@ class AbstractSimilarity:
                 if tokens:
                     f.write(" ".join(tokens)+"\n")
 
+        self.training_args["epoch"] = self.training_args["epoch"] or estimate_epoch(os.path.getsize(tmp_path))
         logger.info("Training the model -- Arguments: {}".format(self.training_args))
 
         try:
