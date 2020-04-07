@@ -33,7 +33,7 @@ nlp.add_pipe(tr.PipelineComponent, name="textrank", last=True)
 # In[35]:
 
 last_keyword_sweep = db.metadata.find_one({'data': 'last_keyword_sweep'})['datetime']
-entries = db.entries.find({'is_covid19': {"$exists": False}}, projection = ["abstract", 'title', "keywords", "keywords_ML", 'category_human', 'is_covid19'])
+entries = db.entries.find({'is_covid19': {"$exists": False}}, projection = ["abstract", 'title', "keywords", "keywords_ML", 'category_human', 'is_covid19', 'body_text'])
 
 # In[48]:
 # print(len(entries))
@@ -86,11 +86,11 @@ for entry in entries:
         if 'title' in entry.keys():
             if any([c.lower() in entry['title'].lower() for c in covid19_words]):
                 is_covid19 = True
-        # try:
-        #     if any([c.lower() in e['Text'].lower() for c in covid19_words for e in entry['body_text']]):
-        #         is_covid19 = True
-        # except KeyError:
-        #     pass
+        try:
+            if any([c.lower() in e['Text'].lower() for c in covid19_words for e in entry['body_text']]):
+                is_covid19 = True
+        except KeyError:
+            pass
 
         entry['is_covid19'] = is_covid19
 
