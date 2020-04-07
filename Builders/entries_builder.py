@@ -72,7 +72,7 @@ def remove_html(abstract):
 def clean_data(doc):
     cleaned_doc = doc
     cleaned_doc = add_pre_proof_and_clean(cleaned_doc)
-    cleaned_doc['abstract'] = remove_html('abstract')
+    # cleaned_doc['abstract'] = remove_html('abstract')
     if cleaned_doc['journal'] == 'PLoS ONE':    
         cleaned_doc['journal'] = 'PLOS ONE'
 
@@ -122,6 +122,8 @@ def merge_documents(high_priority_doc, low_priority_doc):
     preambles = ["Abstract Background", "Abstract:", "Abstract", "Graphical Abstract Highlights d", "Resumen", "Résumé"]
     elsevier_preamble = "publicly funded repositories, such as the WHO COVID database with rights for unrestricted research re-use and analyses in any form or by any means with acknowledgement of the original source. These permissions are granted for free by Elsevier for as long as the COVID-19 resource centre remains active."
     preambles.append(elsevier_preamble)
+
+    pprint(merged_doc['abstract'])
     if 'abstract' in merged_doc.keys() and merged_doc['abstract'] is not None:
         if isinstance(merged_doc['abstract'], list):
             merged_doc['abstract'] = " ".join(merged_doc['abstract'])
@@ -140,6 +142,8 @@ def merge_documents(high_priority_doc, low_priority_doc):
             except TypeError:
                 pprint(merged_doc['abstract'])
 
+    pprint(merged_doc['abstract'])
+
     if 'title' in merged_doc.keys() and merged_doc['title'] is not None:
         if isinstance(merged_doc['title'], list):
             merged_doc['title'] = " ".join(merged_doc['title'])
@@ -149,6 +153,8 @@ def merge_documents(high_priority_doc, low_priority_doc):
             merged_doc['journal'] = " ".join(merged_doc['journal'])
 
     merged_doc = clean_data(merged_doc)
+    pprint(merged_doc['abstract'])
+
     return merged_doc
 
 #Collections are listed in priority order
@@ -186,10 +192,12 @@ def document_priority_greater_than(doc1, doc2):
     priority_dict = {c:-i for i,c in enumerate(origin_priority)}
     priority_dict['Scraper_Elsevier_corona'] = priority_dict['Elsevier_corona_xml']
 
+    if doc1['abstract'] == 'abstract':
+        return False
     if priority_dict[doc1['origin']] > priority_dict[doc2['origin']]:
         return True
     elif doc1['origin'] == doc2['origin']:
-        return doc1['last_updated'] >= doc2['last_updated']
+        return doc1['last_updated'] > doc2['last_updated']
     else:
         return False
 
@@ -205,7 +213,6 @@ for collection in parsed_collections:
     print(collection)
     for doc in db[collection].find(query):
         #doi and title are mandatory
-
         existing_entry = db.entries.find_one({"doi": doc['doi']})
         if existing_entry:
         #Check to see if we already have a doc with this DOI in the entries collection
@@ -213,11 +220,13 @@ for collection in parsed_collections:
                 #Figure out which doc has higher priority
                 insert_doc = merge_documents(existing_entry, doc)
             else:
-                insert_doc = merge_documents(doc, {"origin": "Empty"})
+                insert_doc = merge_documents(doc, existing_entry)
 
         else:
             #otherwise use this to make a new entry
-            insert_doc = merge_documents(doc, dict())
+            insert_doc = merge_documents(doc, {"origin": "Empty"})
+        pprint(doc)
+        pprint(insert_doc['abstract'])
         db.entries.update_one({"doi": insert_doc['doi']}, {"$set": insert_doc}, upsert=True)
 
 #We'll also check the raw google_form_submissions
