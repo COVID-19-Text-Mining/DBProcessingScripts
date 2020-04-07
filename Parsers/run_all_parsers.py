@@ -2,7 +2,9 @@ from maggma.builders import MapBuilder
 from maggma.stores import MongoStore
 from parse_cord_papers import parse_cord_doc
 from parse_biorxiv_papers import parse_biorxiv_doc
+from parse_chemrxiv_papers import parse_chemrxiv_doc
 from parse_google_forms_submissions import parse_google_forms_doc
+from parse_elsevier_corona import parse_elsevier_doc
 import os
 import pymongo
 
@@ -39,7 +41,7 @@ for collection in CORD_collection_names:
   CORD_builders[collection] = MapBuilder(source=cord_db,
                                  target=parsed_db,
                                  ufn=lambda x: parse_cord_doc(x, collection),
-                                 incremental=False,
+                                 incremental=True,
                                  delete_orphans=False,
                                  query={"doi": {"$exists": True}},
                                  store_process_time=False)
@@ -70,13 +72,71 @@ biorxiv_parsed_db = MongoStore(database=os.getenv("COVID_DB"),
 biorxiv_builder = MapBuilder(source=biorxiv_db,
                              target=biorxiv_parsed_db,
                              ufn=lambda x: parse_biorxiv_doc(x, db),
-                             incremental=False,
+                             incremental=True,
                              delete_orphans=False,
                              query=None,
                              store_process_time=False)
 
 print("Scraper_connect_biorxiv_org")
 biorxiv_builder.run()
+
+chemrxiv_db = MongoStore(database=os.getenv("COVID_DB"),
+                         collection_name="Scraper_chemrxiv_org",
+                         host=os.getenv("COVID_HOST"),
+                         username=os.getenv("COVID_USER"),
+                         password=os.getenv("COVID_PASS"),
+                         key="Doi",
+                         lu_field="last_updated",
+                         lu_type="datetime")
+
+chemrxiv_parsed_db = MongoStore(database=os.getenv("COVID_DB"),
+                         collection_name="Scraper_chemrxiv_org_parsed",
+                         host=os.getenv("COVID_HOST"),
+                         username=os.getenv("COVID_USER"),
+                         password=os.getenv("COVID_PASS"),
+                         key="doi",
+                         lu_field="last_updated",
+                         lu_type="datetime")
+
+chemrxiv_builder = MapBuilder(source=chemrxiv_db,
+                             target=chemrxiv_parsed_db,
+                             ufn=lambda x: parse_chemrxiv_doc(x, db),
+                             incremental=True,
+                             delete_orphans=False,
+                             query=None,
+                             store_process_time=False)
+
+print("Scraper_chemrxiv_org")
+chemrxiv_builder.run()
+
+elsevier_db = MongoStore(database=os.getenv("COVID_DB"),
+                         collection_name="Elsevier_corona_xml",
+                         host=os.getenv("COVID_HOST"),
+                         username=os.getenv("COVID_USER"),
+                         password=os.getenv("COVID_PASS"),
+                         key="paper_id",
+                         lu_field="last_updated",
+                         lu_type="datetime")
+
+elsevier_parsed_db = MongoStore(database=os.getenv("COVID_DB"),
+                         collection_name="Elsevier_corona_xml_parsed",
+                         host=os.getenv("COVID_HOST"),
+                         username=os.getenv("COVID_USER"),
+                         password=os.getenv("COVID_PASS"),
+                         key="doi",
+                         lu_field="last_updated",
+                         lu_type="datetime")
+
+elsevier_builder = MapBuilder(source=elsevier_db,
+                             target=elsevier_parsed_db,
+                             ufn=lambda x: parse_elsevier_doc(x, db),
+                             incremental=True,
+                             delete_orphans=False,
+                             query=None,
+                             store_process_time=False)
+
+print("Elsevier")
+elsevier_builder.run()
 
 google_forms_db = MongoStore(database=os.getenv("COVID_DB"),
                          collection_name="google_form_submissions",
@@ -99,7 +159,7 @@ google_forms_parsed_db = MongoStore(database=os.getenv("COVID_DB"),
 google_forms_builder = MapBuilder(source=google_forms_db,
                              target=google_forms_parsed_db,
                              ufn=lambda x: parse_google_forms_doc(x, db),
-                             incremental=False,
+                             incremental=True,
                              delete_orphans=False,
                              query=None,
                              store_process_time=False)
