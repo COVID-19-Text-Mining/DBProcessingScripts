@@ -16,6 +16,7 @@ from tqdm import tqdm_notebook
 
 from difflib import SequenceMatcher as SM
 import datetime
+from pprint import pprint
 
 client = MongoClient(
     host=os.environ["COVID_HOST"], 
@@ -32,7 +33,7 @@ nlp.add_pipe(tr.PipelineComponent, name="textrank", last=True)
 # In[35]:
 
 last_keyword_sweep = db.metadata.find_one({'data': 'last_keyword_sweep'})['datetime']
-entries = list(db.entries.find({'last_updated': {'$gte': last_keyword_sweep}}, projection = ["abstract", 'title', "keywords", "keywords_ML", 'category_human', 'is_covid19', 'body_text']))
+entries = db.entries.find({'is_covid19': {"$exists": False}}, projection = ["abstract", 'title', "keywords", "keywords_ML", 'category_human', 'is_covid19', 'body_text'])
 
 # In[48]:
 
@@ -49,7 +50,10 @@ for entry in entries:
         if "keywords_ML" and 'is_covid19' in entry:
             continue
         # add PyTextRank to the spaCy pipeline
-        doc = nlp(text)
+        try:
+            doc = nlp(text)
+        except TypeError:
+            pprint(entry)
         # examine the top-ranked phrases in the document
         ml_keywords = []
         for p in doc._.phrases:

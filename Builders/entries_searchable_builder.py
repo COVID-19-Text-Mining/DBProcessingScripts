@@ -27,7 +27,11 @@ entries_keys = ['title',
     'keywords_ml',
     'summary_human',
     'summary_ml',
-    'is_covid19'
+    'is_covid19',
+    'is_covid19_ml',
+    'has_year',
+    'has_day',
+    'has_month'
     ]
 
 def strip_down_entry(entry):
@@ -35,28 +39,35 @@ def strip_down_entry(entry):
     #If not possible, return None
     entry_searchable = dict()
 
-    for possibly_list_field in ['title', 'doi', 'journal', 'abstract', 'link', 'is_covid19']:
-        if isinstance(entry[possibly_list_field], list):
-            stringified = " ".join(entry[possibly_list_field])
-        else:
-            stringified = entry[possibly_list_field]
-        entry_searchable[possibly_list_field] = stringified
+    for possibly_list_field in ['title', 'doi', 'journal', 'abstract', 'link', 'is_covid19', 'is_covid19_ml', 'has_year', 'has_month', 'has_day']:
+        if possibly_list_field in entry.keys():
+            if isinstance(entry[possibly_list_field], list):
+                stringified = " ".join(entry[possibly_list_field])
+            else:
+                stringified = entry[possibly_list_field]
+            entry_searchable[possibly_list_field] = stringified
+
+    if not 'is_covid19_ml' in entry.keys():
+        entry['is_covid19_ml'] = False
 
     for multiple_opinions_field in ['category_human', 'category_ML', 'summary_human', 'summary_ML']:
-        if isinstance(entry[multiple_opinions_field], list):
+        if isinstance(entry.get(multiple_opinions_field, ""), list):
             if len(entry[multiple_opinions_field]) > 0:
                 stringified = entry[multiple_opinions_field][0]
             else:
                 stringified = ""
         else:
-            stringified = entry[multiple_opinions_field]
+            stringified = entry.get(multiple_opinions_field, "")
         entry_searchable[multiple_opinions_field.lower()] = stringified
 
     for definitely_list_field in ['keywords', 'keywords_ML']:
-        if entry[definitely_list_field] is None:
+        value = entry.get(definitely_list_field, [])
+        if value is None:
             stringified = ""
+        elif isinstance(value,list):
+            stringified = ", ".join(value)
         else:
-            stringified = ", ".join(entry[definitely_list_field])  
+            stringified = ""  
         entry_searchable[definitely_list_field.lower()] = stringified  
 
     authors_obj = entry.get('authors', [])
@@ -71,12 +82,16 @@ def strip_down_entry(entry):
     authors = ", ".join(full_author_list)
     entry_searchable['authors'] = authors
 
-    entry_searchable['is_covid19'] = str(entry['is_covid19'])
+    #entry_searchable['is_covid19'] = str(entry['is_covid19'])
 
     if entry['publication_date'] is not None:
-        entry_searchable['publication_date'] = entry['publication_date'].isoformat()
+        entry_searchable['publication_date'] = entry['publication_date'].isoformat()+"Z"
     else:
-        entry_searchable['publication_date'] = ""
+        entry_searchable['publication_date'] = datetime.datetime(year=1,month=1,day=1).isoformat()+"Z"
+        entry_searchable['has_year'] = False
+        entry_searchable['has_month'] = False
+        entry_searchable['has_day'] = False
+
 
     try:
         json.dumps(entry_searchable)

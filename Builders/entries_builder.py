@@ -11,7 +11,7 @@ client = pymongo.MongoClient(os.getenv("COVID_HOST"), username=os.getenv("COVID_
 db = client[os.getenv("COVID_DB")]
 
 #Rebuild the entire entries collection
-rebuild = False
+rebuild = True
 #Keys that are allowed in the entries database to keep it clean and minimal
 entries_keys = ['title',
     'authors',
@@ -33,7 +33,52 @@ entries_keys = ['title',
     'has_year',
     'has_month',
     'has_day',
+    'is_pre_proof'
     ]
+
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Apr  3 13:36:44 2020
+
+@author: elise
+"""
+def remove_pre_proof(title):
+    clean_title = title.replace('Journal Pre-proofs', ' ')
+    clean_title = clean_title.replace('Journal Pre-proof', ' ')
+    clean_title = clean_title.strip()
+    if len(clean_title) == 0:
+        clean_title = None
+    return clean_title
+
+
+def add_pre_proof_and_clean(entry):
+    if entry['title'] != None and 'Journal Pre-proof' in entry['title']:
+        entry['is_pre_proof'] = True
+        entry['title'] = remove_pre_proof(entry['title'])
+        
+    else:
+        entry['is_pre_proof'] = False
+    return entry
+
+def remove_html(abstract):
+    #necessary to check this to avoid removing text between less than and greater than signs
+    if abstract is not None and bool(re.search('<.*?>.*?</.*?>', abstract)):
+        clean_abstract = re.sub('<.*?>', '', abstract)
+        return clean_abstract
+    else:
+        return abstract
+
+    
+def clean_data(doc):
+    cleaned_doc = doc
+    cleaned_doc = add_pre_proof_and_clean(cleaned_doc)
+    #cleaned_doc['abstract'] = remove_html('abstract')
+    if cleaned_doc['journal'] == 'PLoS ONE':    
+        cleaned_doc['journal'] = 'PLOS ONE'
+
+    return cleaned_doc
+
+    
 
 def merge_documents(high_priority_doc, low_priority_doc):
     #Merge documents from two different source collections
@@ -42,7 +87,7 @@ def merge_documents(high_priority_doc, low_priority_doc):
     merged_doc = dict()
     for k in entries_keys:
         #Treat human annotations separately - always merge them into a list
-        if k not in ['summary_human', 'keywords', 'category_human', 'category_human']:
+        if k not in ['summary_human', 'keywords', 'keywords_ML', 'category_human', 'category_human']:
     
             #First fill in what we can from high_priority_doc
             if k in high_priority_doc.keys() and high_priority_doc[k] is not None and high_priority_doc[k] not in ["", []]:
@@ -58,11 +103,14 @@ def merge_documents(high_priority_doc, low_priority_doc):
             for doc in [high_priority_doc, low_priority_doc]:
                 if k in doc.keys():
                     if isinstance(doc[k], str):
-                        merged_category.append(doc[k])
+                        if not doc[k] in merged_category:
+                            merged_category.append(doc[k])
                     elif isinstance(doc[k], list):
-                        merged_category += doc[k]
+                        for e in doc[k]:
+                            if not e in merged_category:
+                                merged_category.append(e)
 
-            merged_doc[k] = [anno.strip() for anno in merged_category]
+            merged_doc[k] = list(set([anno.strip() for anno in merged_category]))
 
     merged_doc['last_updated'] = datetime.datetime.now()
 
@@ -72,6 +120,8 @@ def merge_documents(high_priority_doc, low_priority_doc):
 
     #Common starting text to abstracts that we want to clean
     preambles = ["Abstract Background", "Abstract:", "Abstract", "Graphical Abstract Highlights d", "Resumen", "Résumé"]
+    elsevier_preamble = "publicly funded repositories, such as the WHO COVID database with rights for unrestricted research re-use and analyses in any form or by any means with acknowledgement of the original source. These permissions are granted for free by Elsevier for as long as the COVID-19 resource centre remains active."
+    preambles.append(elsevier_preamble)
     if 'abstract' in merged_doc.keys() and merged_doc['abstract'] is not None:
         if isinstance(merged_doc['abstract'], list):
             merged_doc['abstract'] = " ".join(merged_doc['abstract'])
@@ -90,17 +140,28 @@ def merge_documents(high_priority_doc, low_priority_doc):
             except TypeError:
                 pprint(merged_doc['abstract'])
 
+    if 'title' in merged_doc.keys() and merged_doc['title'] is not None:
+        if isinstance(merged_doc['title'], list):
+            merged_doc['title'] = " ".join(merged_doc['title'])
+
+    if 'journal' in merged_doc.keys() and merged_doc['journal'] is not None:
+        if isinstance(merged_doc['journal'], list):
+            merged_doc['journal'] = " ".join(merged_doc['journal'])
+
+    merged_doc = clean_data(merged_doc)
     return merged_doc
 
 #Collections are listed in priority order
 origin_collections = [
   'google_form_submissions',  
   'Scraper_connect_biorxiv_org',
+  'Scraper_chemrxiv_org',
   'CORD_noncomm_use_subset',
   'CORD_comm_use_subset',
   'CORD_biorxiv_medrxiv',
   'CORD_custom_license',
-  'CORD_metadata']
+  'CORD_metadata',
+  "Elsevier_corona_xml"]
 
 def document_priority_greater_than(doc1, doc2):
     #Compare the priority of doc1 and doc2 based on their origin collection
@@ -110,9 +171,24 @@ def document_priority_greater_than(doc1, doc2):
     #We don't handle the case where either doc doesn't have an origin
     #because we should definitely throw an exception when a ghost paper appears
 
-    priority_dict = {c:-i for i,c in enumerate(origin_collections)}
+    origin_priority = [
+      'google_form_submissions',  
+      "Elsevier_corona_xml",
+      'Scraper_connect_biorxiv_org',
+      'Scraper_chemrxiv_org',
+      'CORD_noncomm_use_subset',
+      'CORD_comm_use_subset',
+      'CORD_biorxiv_medrxiv',
+      'CORD_custom_license',
+      'CORD_metadata',
+      "Empty"]
 
-    if priority_dict[doc1['origin']] > priority_dict[doc1['origin']]:
+    priority_dict = {c:-i for i,c in enumerate(origin_priority)}
+    priority_dict['Scraper_Elsevier_corona'] = priority_dict['Elsevier_corona_xml']
+
+    if doc1['abstract'] == 'abstract':
+        return False
+    if priority_dict[doc1['origin']] > priority_dict[doc2['origin']]:
         return True
     elif doc1['origin'] == doc2['origin']:
         return doc1['last_updated'] >= doc2['last_updated']
@@ -139,12 +215,12 @@ for collection in parsed_collections:
                 #Figure out which doc has higher priority
                 insert_doc = merge_documents(existing_entry, doc)
             else:
-                insert_doc = merge_documents(doc, existing_entry)
+                insert_doc = merge_documents(doc, {"origin": "Empty"})
 
         else:
             #otherwise use this to make a new entry
-            insert_doc = {k:v for k,v in doc.items() if k in entries_keys}
-        db.entries_trial.update_one({"doi": insert_doc['doi']}, {"$set": insert_doc}, upsert=True)
+            insert_doc = merge_documents(doc, dict())
+        db.entries.update_one({"doi": insert_doc['doi']}, {"$set": insert_doc}, upsert=True)
 
 #We'll also check the raw google_form_submissions
 #Uploading and parsing the PDFs takes a while, and
@@ -163,7 +239,7 @@ for doc in db.google_form_submissions.find(query):
         insert_doc = merge_documents(existing_entry, doc)
     else:
         #otherwise use this to make a new entry
-        insert_doc = {k:v for k,v in doc.items() if k in entries_keys}
+        insert_doc = merge_documents(doc, {"origin": "Empty"})
         #Raw 'google form submissions' collection doesn't have an origin field
         insert_doc['origin'] = 'google_form_submissions'
     db.entries.update_one({"doi": insert_doc['doi']}, {"$set": insert_doc}, upsert=True)
