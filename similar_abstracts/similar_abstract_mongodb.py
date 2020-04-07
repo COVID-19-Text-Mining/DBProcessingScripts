@@ -260,7 +260,7 @@ class AbstractSimilarity:
         if no_vec:
             tmp = self._get_para_vec(abstract, False)
         if tmp[0] is None:
-            logger.info("{} cannot be tokenized.".format(doi))
+            #logger.info("{} cannot be tokenized.".format(doi))
             return None
         if no_vec:
             byte_array = (tmp[0].tobytes(), tmp[1].tobytes())
