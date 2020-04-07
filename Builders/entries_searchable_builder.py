@@ -82,10 +82,14 @@ def strip_down_entry(entry):
     authors = ", ".join(full_author_list)
     entry_searchable['authors'] = authors
 
-    #entry_searchable['is_covid19'] = str(entry['is_covid19'])
+    entry_searchable['is_covid19'] = str(entry['is_covid19'])
 
     if entry['publication_date'] is not None:
-        entry_searchable['publication_date'] = entry['publication_date'].isoformat()+"Z"
+        if entry['publication_date'] > datetime.datetime.now() and '_bt' in entry.keys():
+            pub_date = entry['_bt']
+        else:
+            pub_date = entry['publication_date']
+        entry_searchable['publication_date'] = pub_date.isoformat()+"Z"
     else:
         entry_searchable['publication_date'] = datetime.datetime(year=1,month=1,day=1).isoformat()+"Z"
         entry_searchable['has_year'] = False

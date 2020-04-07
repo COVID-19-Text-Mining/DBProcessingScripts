@@ -33,7 +33,8 @@ entries_keys = ['title',
     'has_year',
     'has_month',
     'has_day',
-    'is_pre_proof'
+    'is_pre_proof',
+    '_bt'
     ]
 
 # -*- coding: utf-8 -*-
