@@ -1,4 +1,7 @@
+import collections
 import json
+from pprint import pprint
+
 import numpy as np
 from bson import json_util
 import summa
@@ -8,8 +11,8 @@ import mrakun
 import regex
 import string
 from nltk.corpus import stopwords
-
-from IndependentScripts.common_utils import get_mongo_db
+import matplotlib.pyplot as plt
+from wordcloud import WordCloud, STOPWORDS
 
 class KeywordsExtractorBase():
     def __init__(self, **kwargs):
@@ -32,9 +35,6 @@ class KeywordsExtractorBase():
                 lambda x: regex.search(r'\b{}\b'.format(x[0]), text, flags=regex.IGNORECASE),
                 words_and_scores
             ))
-        print('{} words_and_scores'.format(self.name))
-        print(words_and_scores)
-        print()
         if self.output_format == 'words_and_scores':
             return words_and_scores
         elif self.output_format == 'words_only':
@@ -567,7 +567,7 @@ class KeywordsExtractorRaKUn(KeywordsExtractorBase):
             'max_similar': max_similar,
             'max_occurrence': max_occurrence,
         }
-        self.kw_extractor = mrakun.RakunDetector(self.hyperparameters)
+        self.kw_extractor = mrakun.RakunDetector(self.hyperparameters, verbose=False)
 
     def _process(self, text):
         # load the content of the document.
@@ -655,36 +655,6 @@ def evaluation_many_docs(ref_docs, pred_docs, ignore_case=True):
 
     return np.mean(all_precision), np.mean(all_recall), np.mean(all_f1)
 
-def collect_samples():
-    samples = []
-
-    db = get_mongo_db('../config.json')
-    print(db.collection_names())
-
-    query = db['entries'].aggregate(
-        [
-            {
-                '$match': {
-                    "abstract": {"$exists": True},
-                    "doi": {"$exists": True},
-                    "keywords.0": {"$exists": True},
-                },
-            },
-            {
-                '$sample': {'size': 100}
-            },
-        ],
-        allowDiskUse=True
-    )
-    for doc in query:
-        if doc['abstract']:
-            samples.append(doc)
-
-    print('len(samples)', len(samples))
-
-    with open('../scratch/paper_samples.json', 'w') as fw:
-        json.dump(samples, fw, indent=2, default=json_util.default)
-
 
 def train_word_frequency():
     # stoplist for filtering n-grams
@@ -702,13 +672,15 @@ def train_word_frequency():
         stoplist=stoplist
     )
 
-def keyword_tester(keyword_extractors, out_path='../scratch/keywords.html'):
+def keyword_tester(keyword_extractors,
+                   in_path='../scratch/paper_samples.json',
+                   out_path='../scratch/keywords.html'):
     html_head = ''
     html_body = ''
 
     all_keywords = {}
 
-    with open('../scratch/paper_samples.json', 'r') as fr:
+    with open(in_path, 'r') as fr:
         data = json.load(fr)
 
     for doc in data:
@@ -803,68 +775,142 @@ def keyword_tester(keyword_extractors, out_path='../scratch/keywords.html'):
         fw.writelines(
             html_body
         )
+    return html_body
 
+def extract_keywords(in_path='../rsc/samples_21181.json',
+                     out_path='../scratch/papers_w_keywords.json'):
+    with open(in_path, 'r') as fr:
+        papers = json.load(fr)
+
+    print('len(papers)', len(papers))
+
+    papers_w_keywords = []
+    extractor = KeywordsExtractorRaKUn(
+        name='RaKUn_0',
+        distance_threshold=2,
+        pair_diff_length=2,
+        bigram_count_threhold=2,
+        num_tokens=[1, 2, 3],
+        max_similar=10,
+        max_occurrence=3,
+        score_threshold=None,
+        use_longest_phrase=True,
+    )
+    for p in papers:
+        abstract = KeywordsExtractorBase().clean_html_tag(p['abstract'])
+        try:
+            keywords = extractor.process(abstract)
+            p['keywords'] = keywords
+            papers_w_keywords.append(p)
+        except:
+            print('Error')
+            print(abstract)
+
+    with open(out_path, 'w') as fw:
+        json.dump(papers_w_keywords, fw, indent=2)
+
+
+def plot_word_cloud(in_path='../scratch/papers_w_keywords.json',
+                    out_path='../scratch/keywords_word_cloud.png'):
+    with open(in_path, 'r') as fr:
+        papers = json.load(fr)
+    all_keywords = collections.Counter()
+    for p in papers:
+        for w in p['keywords']:
+            all_keywords[w] += 1
+
+    stoplist = list(string.punctuation)
+    stoplist += ['-lrb-', '-rrb-', '-lcb-', '-rcb-', '-lsb-', '-rsb-']
+    stoplist += stopwords.words('english')
+    wordcloud = WordCloud(
+        background_color='white',
+        max_words=200,
+        stopwords=stoplist,
+        max_font_size=250,
+        random_state=30,
+        height=860,
+        margin=2,
+        width=1000,
+        collocations=False,
+        # mask=alice_coloring
+    ).generate_from_frequencies(all_keywords)
+    # plt.figure(figsize=(16,10))
+    # plt.figure(figsize=(16,10))  
+    plt.imshow(wordcloud, interpolation='bilinear')
+    plt.axis('off')
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=300)
+    plt.show()
 
 
 
 if __name__ == '__main__':
-    # collect_samples()
-
     # train_word_frequency()
 
-    keyword_tester(
-        keyword_extractors=[
-            KeywordsExtractorSumma(
-                name='Summa_0',
-                split=True,
-                scores=True,
-                use_longest_phrase=True,
-            ),
-            KeywordsExtractorYake(
-                name='Yake_20',
-                max_ngram_size=3,
-                window_size=1,
-                top=20,
-                use_longest_phrase=True,
-            ),
-            # KeywordsExtractorTfIdf(
-            #     max_ngram_size=3,
-            #     # df='../rsc/tf_abs_2.tsv.gz',
-            # ),
-            # KeywordsExtractorKPMiner(
-            #     # df='../rsc/tf_abs_2.tsv.gz',
-            # ),
-            # KeywordsExtractorSingleRank(),
-            # KeywordsExtractorTopicRank(),
-            # KeywordsExtractorTopicalPageRank(
-            #     lda_model='../scratch/pke_lda_0',
-            # ),
-            # KeywordsExtractorPositionRank(),
-            # KeywordsExtractorMultipartiteRank(),
-            KeywordsExtractorRaKUn(
-                name='RaKUn_0',
-                distance_threshold=2,
-                pair_diff_length=2,
-                bigram_count_threhold=2,
-                num_tokens=[1,2,3],
-                max_similar=10,
-                max_occurrence=3,
-                score_threshold=None,
-                use_longest_phrase=True,
-            ),
-            KeywordsExtractorRaKUn(
-                name='RaKUn_3',
-                distance_threshold=2,
-                pair_diff_length=2,
-                bigram_count_threhold=2,
-                num_tokens=[1, 2, 3],
-                max_similar=10,
-                max_occurrence=3,
-                score_threshold=0.20,
-                use_longest_phrase=True,
-            ),
+    # extract_keywords(
+    #     in_path='../rsc/samples_21181.json',
+    #     out_path='../scratch/papers_w_keywords.json'
+    # )
 
-
-        ],
-        out_path='../scratch/keywords_test.html'
+    plot_word_cloud(
+        in_path='../scratch/papers_w_keywords.json',
+        out_path='../scratch/keywords_word_cloud.png',
     )
+
+    # keyword_tester(
+    #     keyword_extractors=[
+    #         KeywordsExtractorSumma(
+    #             name='Summa_0',
+    #             split=True,
+    #             scores=True,
+    #             use_longest_phrase=True,
+    #         ),
+    #         KeywordsExtractorYake(
+    #             name='Yake_20',
+    #             max_ngram_size=3,
+    #             window_size=1,
+    #             top=20,
+    #             use_longest_phrase=True,
+    #         ),
+    #         # KeywordsExtractorTfIdf(
+    #         #     max_ngram_size=3,
+    #         #     # df='../rsc/tf_abs_2.tsv.gz',
+    #         # ),
+    #         # KeywordsExtractorKPMiner(
+    #         #     # df='../rsc/tf_abs_2.tsv.gz',
+    #         # ),
+    #         # KeywordsExtractorSingleRank(),
+    #         # KeywordsExtractorTopicRank(),
+    #         # KeywordsExtractorTopicalPageRank(
+    #         #     lda_model='../scratch/pke_lda_0',
+    #         # ),
+    #         # KeywordsExtractorPositionRank(),
+    #         # KeywordsExtractorMultipartiteRank(),
+    #         KeywordsExtractorRaKUn(
+    #             name='RaKUn_0',
+    #             distance_threshold=2,
+    #             pair_diff_length=2,
+    #             bigram_count_threhold=2,
+    #             num_tokens=[1,2,3],
+    #             max_similar=10,
+    #             max_occurrence=3,
+    #             score_threshold=None,
+    #             use_longest_phrase=True,
+    #         ),
+    #         KeywordsExtractorRaKUn(
+    #             name='RaKUn_3',
+    #             distance_threshold=2,
+    #             pair_diff_length=2,
+    #             bigram_count_threhold=2,
+    #             num_tokens=[1, 2, 3],
+    #             max_similar=10,
+    #             max_occurrence=3,
+    #             score_threshold=0.20,
+    #             use_longest_phrase=True,
+    #         ),
+    #
+    #
+    #     ],
+    #     in_path='../scratch/paper_samples.json',
+    #     out_path='../scratch/keywords_test.html',
+    # )
