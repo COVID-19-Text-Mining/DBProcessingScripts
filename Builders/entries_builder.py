@@ -72,7 +72,7 @@ def remove_html(abstract):
 def clean_data(doc):
     cleaned_doc = doc
     cleaned_doc = add_pre_proof_and_clean(cleaned_doc)
-    # cleaned_doc['abstract'] = remove_html('abstract')
+    cleaned_doc['abstract'] = remove_html(cleaned_doc['abstract'])
     if cleaned_doc['journal'] == 'PLoS ONE':    
         cleaned_doc['journal'] = 'PLOS ONE'
 
