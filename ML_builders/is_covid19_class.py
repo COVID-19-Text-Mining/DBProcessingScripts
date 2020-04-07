@@ -29,7 +29,7 @@ covid19_classifier = spacy.load("./COVID19_model")
 # In[35]:
 
 # last_keyword_sweep = db.metadata.find_one({'data': 'last_keyword_sweep'})['datetime']
-entries = db.entries.find({"is_covid19_ml": {"$exists": False}}, projection = ["abstract", 'title', "keywords", "keywords_ML", 'category_human', 'is_covid19', 'body_text'])
+entries = db.entries.find({"is_covid19_ml_bool": {"$exists": False}}, projection = ["abstract", 'title', "keywords", "keywords_ML", 'category_human', 'is_covid19', 'body_text'])
 
 # In[48]:
 
@@ -107,6 +107,6 @@ for i, entry in enumerate(entries):
     # print(entry['is_covid19_ml'])
 
 # print(covid_count)
-    db.entries.update_one({"_id": entry["_id"]}, {"$set": {"is_covid19_ml": entry["is_covid19_ml"], "is_covid19_ml_bool": entry["is_covid19_ml"], "last_updated": datetime.datetime.now()}})
+    db.entries.update_one({"_id": entry["_id"]}, {"$set": {"is_covid19_ml": entry["is_covid19_ml"], "is_covid19_ml_bool": entry["is_covid19_ml_bool"], "last_updated": datetime.datetime.now()}})
 
 # db.metadata.update_one({'data':"last_keyword_sweep"}, {"$set": {"datetime": datetime.datetime.now()}})
