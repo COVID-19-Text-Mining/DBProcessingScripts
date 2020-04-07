@@ -40,11 +40,15 @@ def strip_down_entry(entry):
     entry_searchable = dict()
 
     for possibly_list_field in ['title', 'doi', 'journal', 'abstract', 'link', 'is_covid19', 'is_covid19_ml', 'has_year', 'has_month', 'has_day']:
-        if isinstance(entry[possibly_list_field], list):
-            stringified = " ".join(entry[possibly_list_field])
-        else:
-            stringified = entry[possibly_list_field]
-        entry_searchable[possibly_list_field] = stringified
+        if possibly_list_field in entry.keys():
+            if isinstance(entry[possibly_list_field], list):
+                stringified = " ".join(entry[possibly_list_field])
+            else:
+                stringified = entry[possibly_list_field]
+            entry_searchable[possibly_list_field] = stringified
+
+    if not 'is_covid19_ml' in entry.keys():
+        entry['is_covid19_ml'] = False
 
     for multiple_opinions_field in ['category_human', 'category_ML', 'summary_human', 'summary_ML']:
         if isinstance(entry.get(multiple_opinions_field, ""), list):
@@ -78,7 +82,7 @@ def strip_down_entry(entry):
     authors = ", ".join(full_author_list)
     entry_searchable['authors'] = authors
 
-    entry_searchable['is_covid19'] = str(entry['is_covid19'])
+    #entry_searchable['is_covid19'] = str(entry['is_covid19'])
 
     if entry['publication_date'] is not None:
         entry_searchable['publication_date'] = entry['publication_date'].isoformat()+"Z"
