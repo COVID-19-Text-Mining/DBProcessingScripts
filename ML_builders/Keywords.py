@@ -33,7 +33,7 @@ nlp.add_pipe(tr.PipelineComponent, name="textrank", last=True)
 # In[35]:
 
 last_keyword_sweep = db.metadata.find_one({'data': 'last_keyword_sweep'})['datetime']
-entries = list(db.entries_new.find({'keywords_ML': None}, projection = ["abstract", 'title', "keywords", "keywords_ML", 'category_human', 'is_covid19', 'body_text']))
+entries = db.entries.find({'is_covid19': {"$exists": False}}, projection = ["abstract", 'title', "keywords", "keywords_ML", 'category_human', 'is_covid19', 'body_text'])
 
 # In[48]:
 
@@ -95,7 +95,7 @@ for entry in entries:
         entry['is_covid19'] = is_covid19
 
     # print(entry)
-    db.entries_new.update_one({"_id": entry["_id"]}, {"$set": {"keywords_ML": entry["keywords_ML"], "is_covid19": entry["is_covid19"], "last_updated": datetime.datetime.now()}})
+    db.entries.update_one({"_id": entry["_id"]}, {"$set": {"keywords_ML": entry["keywords_ML"], "is_covid19": entry["is_covid19"], "last_updated": datetime.datetime.now()}})
 
 db.metadata.update_one({'data':"last_keyword_sweep"}, {"$set": {"datetime": datetime.datetime.now()}})
     # print(entry)

@@ -72,7 +72,7 @@ def remove_html(abstract):
 def clean_data(doc):
     cleaned_doc = doc
     cleaned_doc = add_pre_proof_and_clean(cleaned_doc)
-    cleaned_doc['abstract'] = remove_html('abstract')
+    #cleaned_doc['abstract'] = remove_html('abstract')
     if cleaned_doc['journal'] == 'PLoS ONE':    
         cleaned_doc['journal'] = 'PLOS ONE'
 
@@ -186,6 +186,8 @@ def document_priority_greater_than(doc1, doc2):
     priority_dict = {c:-i for i,c in enumerate(origin_priority)}
     priority_dict['Scraper_Elsevier_corona'] = priority_dict['Elsevier_corona_xml']
 
+    if doc1['abstract'] == 'abstract':
+        return False
     if priority_dict[doc1['origin']] > priority_dict[doc2['origin']]:
         return True
     elif doc1['origin'] == doc2['origin']:
