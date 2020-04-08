@@ -60,7 +60,7 @@ def strip_down_entry(entry):
         try:
             entry['is_covid19_ml'] = float(entry['is_covid19_ml'])
         except:
-            print("entry", str(entry["_id"]),'has a non-numeric value (', entry['is_covid19_ml'], ') for is_covid_19_mli!')
+            print("entry", str(entry["_id"]),'has a non-numeric value (', entry['is_covid19_ml'], ') for is_covid_19_ml!')
             if entry['is_covid19_ml'] == False:
                 entry['is_covid19_ml'] = 0.0
             elif entry['is_covid19_ml'] == True:
@@ -68,7 +68,7 @@ def strip_down_entry(entry):
             print(f"using default value of 0.0 for is_covid19_ml of entry", str(entry['_id']))
             entry['is_covid19_ml'] = 0.0
     
-    entry['is_covid19_ml_bool'] = entry['is_covid19_ml'] > 0.5
+    entry['is_covid19_ml_bool'] = (entry['is_covid19_ml'] > 0.5) or entry['is_covid19']
 
     for multiple_opinions_field in ['category_human', 'category_ML', 'summary_human', 'summary_ML']:
         if isinstance(entry.get(multiple_opinions_field, ""), list):
