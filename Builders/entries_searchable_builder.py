@@ -4,6 +4,7 @@ import sys
 import json
 import datetime
 import re
+from tqdm import tqdm
 from pprint import pprint
 import json
 
@@ -11,10 +12,13 @@ client = pymongo.MongoClient(os.getenv("COVID_HOST"), username=os.getenv("COVID_
                              password=os.getenv("COVID_PASS"), authSource=os.getenv("COVID_DB"))
 db = client[os.getenv("COVID_DB")]
 
+use_test_db = False
+
 #Rebuild the entire entries collection
 rebuild = False
 #Keys that are allowed in the entries database to keep it clean and minimal
-entries_keys = ['title',
+entries_keys = [
+    'title',
     'authors',
     'doi',
     'journal',
@@ -29,6 +33,7 @@ entries_keys = ['title',
     'summary_ml',
     'is_covid19',
     'is_covid19_ml',
+    'is_covid19_ml_bool',
     'has_year',
     'has_day',
     'has_month'
@@ -48,7 +53,20 @@ def strip_down_entry(entry):
             entry_searchable[possibly_list_field] = stringified
 
     if not 'is_covid19_ml' in entry.keys():
-        entry['is_covid19_ml'] = False
+        entry['is_covid19_ml'] = 0.0
+    elif not isinstance(entry['is_covid19_ml'], float):
+        try:
+            entry['is_covid19_ml'] = float(entry['is_covid19_ml'])
+        except:
+            print("entry", str(entry["_id"]),'has a non-numeric value (', entry['is_covid19_ml'], ') for is_covid_19_mli!')
+            if entry['is_covid19_ml'] == False:
+                entry['is_covid19_ml'] = 0.0
+            elif entry['is_covid19_ml'] == True:
+                entry['is_covid19_ml'] = 1.0
+            print(f"using default value of 0.0 for is_covid19_ml of entry", str(entry['_id']))
+            entry['is_covid19_ml'] = 0.0
+    
+    entry['is_covid19_ml_bool'] = entry['is_covid19_ml'] > 0.5
 
     for multiple_opinions_field in ['category_human', 'category_ML', 'summary_human', 'summary_ML']:
         if isinstance(entry.get(multiple_opinions_field, ""), list):
@@ -104,12 +122,15 @@ def strip_down_entry(entry):
         return None
 
 
-for doc in db.entries.find():
-
+for doc in tqdm(list(db.entries.find())):
+    if use_test_db:
+        collection_name = "entries_searchable_test"
+    else: 
+        collection_name = "entries_searchable"
     stripped_down = strip_down_entry(doc)
     if stripped_down:
-        existing_entry = db.entries_searchable.find_one({"doi": doc["doi"]})
+        existing_entry = db[collection_name].find_one({"doi": doc["doi"]})
         if existing_entry:
-            db.entries_searchable.find_one_and_replace({"doi": doc["doi"]}, stripped_down)
+            db[collection_name].find_one_and_replace({"doi": doc["doi"]}, stripped_down)
         else:
-            db.entries_searchable.insert_one(stripped_down)
+            db[collection_name].insert_one(stripped_down)
