@@ -31,7 +31,9 @@ entries_keys = ['title',
     'is_covid19_ml',
     'has_year',
     'has_day',
-    'has_month'
+    'has_month',
+    'similar_abstracts',
+    'is_covid19_ml_bool',
     ]
 
 def strip_down_entry(entry):
@@ -39,7 +41,7 @@ def strip_down_entry(entry):
     #If not possible, return None
     entry_searchable = dict()
 
-    for possibly_list_field in ['title', 'doi', 'journal', 'abstract', 'link', 'is_covid19', 'is_covid19_ml', 'has_year', 'has_month', 'has_day']:
+    for possibly_list_field in ['title', 'doi', 'journal', 'abstract', 'link', 'is_covid19', 'is_covid19_ml', 'has_year', 'has_month', 'has_day', 'is_covid19_ml_bool']:
         if possibly_list_field in entry.keys():
             if isinstance(entry[possibly_list_field], list):
                 stringified = " ".join(entry[possibly_list_field])
