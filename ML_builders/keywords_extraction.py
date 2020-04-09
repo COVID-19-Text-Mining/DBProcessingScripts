@@ -1,18 +1,30 @@
+import importlib
+
+def found_package(package_name):
+    pkg_check = importlib.util.find_spec(package_name)
+    found = pkg_check is not None
+    return found
+
+
 import collections
 import json
 from pprint import pprint
-
 import numpy as np
 from bson import json_util
-import summa
-import yake
-import pke
-import mrakun
 import regex
 import string
 from nltk.corpus import stopwords
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud, STOPWORDS
+
+if found_package('summa'):
+    import summa
+if found_package('yake'):
+    import yake
+if found_package('pke'):
+    import pke
+if found_package('mrakun'):
+    import mrakun
 
 class KeywordsExtractorBase():
     def __init__(self, **kwargs):
@@ -935,6 +947,6 @@ if __name__ == '__main__':
 
 
         ],
-        in_path='../scratch/paper_chemrxiv_samples.json',
-        out_path='../scratch/keywords_chemrxiv_test.html',
+        in_path='../scratch/paper_samples.json',
+        out_path='../scratch/keywords_test2.html',
     )
