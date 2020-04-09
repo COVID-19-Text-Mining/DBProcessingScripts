@@ -1,3 +1,4 @@
+import json
 import threading
 
 from pprint import pprint
@@ -10,9 +11,11 @@ import seaborn as sns
 import multiprocessing as mp
 import pandas as pd
 
+from common_utils import clean_title
 from common_utils import get_mongo_db, parse_date, parse_names, query_crossref, text_similarity_by_char
 from common_utils import LEAST_TITLE_LEN, FIVE_PERCENT_TITLE_LEN, LEAST_TITLE_SIMILARITY, IGNORE_BEGIN_END_TITLE_SIMILARITY
 from common_utils import LEAST_ABS_LEN, FIVE_PERCENT_ABS_LEN, LEAST_ABS_SIMILARITY, IGNORE_BEGIN_END_ABS_SIMILARITY
+from common_utils import valid_a_doi, query_crossref_by_doi
 
 PAPER_COLLECTIONS = {
     'CORD_biorxiv_medrxiv',
@@ -243,6 +246,115 @@ def check_doc_wo_doi(mongo_db):
 #######################################
 # functions for post processing
 #######################################
+
+def valid_CORD_doi(mongo_db):
+    error_doc = []
+    for col_name in mongo_db.collection_names():
+        if col_name not in PAPER_COLLECTIONS:
+            continue
+        print('col_name', col_name)
+        col = mongo_db[col_name]
+
+        # interpret csv_raw_result
+        query = col.find(
+            {
+                'doi': {'$exists': True},
+            },
+            {
+                'doi': True,
+                'abstract': True,
+                'metadata': True,
+            }
+        )
+        total_num = query.count()
+        print('query.count w_doi', total_num)
+        for i, doc in enumerate(query):
+            if i%1000 == 0:
+                print('valid_CORD_doi: {} out of {} in {}'.format(i, total_num, col_name))
+
+            valid = True
+
+            # get abstract
+            abstract = None
+            if 'abstract' in doc and len(doc['abstract']) > 0:
+                abstract = ''
+                for fragment in doc['abstract']:
+                    if ('text' in fragment
+                        and isinstance(fragment['text'], str)
+                        and len(fragment['text']) > 0
+                    ):
+                        abstract += fragment['text'].strip() + ' '
+
+                abstract = abstract.strip()
+                if len(abstract) == 0:
+                    abstract = None
+
+            # get title
+            raw_title = None
+            if ('metadata' in doc
+                and 'title' in doc['metadata']
+                and isinstance(doc['metadata']['title'], str)
+                and len(doc['metadata']['title'].strip()) > 0
+            ):
+                raw_title = doc['metadata']['title']
+
+            try:
+                valid = valid_a_doi(doi=doc['doi'], abstract=abstract, title=raw_title)
+            except Exception as e:
+                print(e)
+                pprint(doc)
+            print(doc['doi'], valid)
+            if valid == False:
+                error_doc.append({
+                    'doi':  doc['doi'],
+                    'source': col_name,
+                })
+
+    with open('../scratch/doc_w_error_doi.json', 'w') as fw:
+        json.dump(error_doc, fw, indent=2)
+
+def add_crossref_by_doi(mongo_db):
+    error_doc = []
+    for col_name in mongo_db.collection_names():
+        if col_name not in PAPER_COLLECTIONS:
+            continue
+        print('col_name', col_name)
+        col = mongo_db[col_name]
+
+        # interpret csv_raw_result
+        query = col.find(
+            {
+                'doi': {'$exists': True},
+                'crossref_raw_result': {'$exists': False},
+            },
+            {
+                '_id': True,
+                'doi': True,
+            }
+        )
+        total_num = query.count()
+        print('query.count w_doi', total_num)
+
+        for i, doc in enumerate(query) :
+            if i%1000 == 0:
+                print('add_crossref_by_doi: {} out of {} in {}'.format(i, total_num, col_name))
+            try:
+                query_result = query_crossref_by_doi(doc['doi'])
+            except Exception as e:
+                query_result = None
+                print(e)
+            if query_result is not None:
+                print('doc', doc)
+                col.find_one_and_update(
+                    {"_id": doc['_id']},
+                    {
+                        "$set": {
+                            'crossref_raw_result': query_result,
+                            'last_updated': datetime.now(),
+                        },
+                    }
+                )
+
 
 def add_useful_fields(mongo_db):
     for col_name in mongo_db.collection_names():
@@ -475,12 +587,6 @@ def assign_suggested_doi(mongo_db):
 #######################################
 # functions for doi searching task
 #######################################
-
-def clean_title(title):
-    clean_title = title
-    clean_title = clean_title.lower()
-    clean_title = clean_title.strip()
-    return clean_title
 
 def correct_pd_dict(input_dict):
     """
@@ -1290,9 +1396,13 @@ if __name__ == '__main__':
 
     # check_doc_wo_doi(db)
 
+    # valid_CORD_doi(db)
+
+    add_crossref_by_doi(db)
+
     # add_useful_fields(db)
 
-    assign_suggested_doi(db)
+    # assign_suggested_doi(db)
 
     # foo(db, num_cores=4)
 
