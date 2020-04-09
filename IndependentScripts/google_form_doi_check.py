@@ -1,66 +1,21 @@
-from common_utils import get_mongo_db, query_crossref_by_doi, query_doiorg_by_doi, text_similarity_by_char
-from common_utils import LEAST_ABS_LEN, FIVE_PERCENT_ABS_LEN, LEAST_ABS_SIMILARITY, IGNORE_BEGIN_END_ABS_SIMILARITY
+from common_utils import get_mongo_db
+from common_utils import valid_a_doi
 
-def valid_a_doi(doi, doc_data=None):
-    valid = True
-
-    # type check
-    if valid:
-        if not (isinstance(doi, str) and len(doi) > 0):
-            valid = False
-            print('DOI should be a non-empty str. doi: {} might be invalid'.format(doi))
-
-    # check via crossref
-    if valid:
-        try:
-            query_result = query_crossref_by_doi(doi)
-        except Exception as e:
-            query_result = None
-            valid = False
-            print(e)
-        if (query_result is not None
-            and 'abstract' in query_result
-            and len(query_result['abstract']) > 0
-            and 'abstract' in doc_data
-            and len(doc_data['abstract']) > 0
-        ):
-            similarity = text_similarity_by_char(
-                query_result['abstract'],
-                doc_data['abstract'],
-                quick_mode=False,
-                enable_ignore_begin_end=True,
-                ignore_begin_end_text_len=FIVE_PERCENT_ABS_LEN,
-                ignore_begin_end_similarity=IGNORE_BEGIN_END_ABS_SIMILARITY,
-            )
-            if not (len(query_result['abstract']) > LEAST_ABS_LEN
-                and len(doc_data['abstract']) > LEAST_ABS_LEN
-                and similarity > 0.6
-            ):
-                valid = False
-                print('Abstract does not match. doi: {} might be invalid!'.format(doi))
-                print('abstract similarity',  similarity)
-
-    if valid:
-        # check via doi.org
-        try:
-            query_result = query_doiorg_by_doi(doi)
-        except Exception as e:
-            query_result = None
-            valid = False
-            print(e)
-
-    return valid
 
 def valid_existing_doi(mongo_db, col_name):
+    error_doi = []
     print('col_name', col_name)
     col = mongo_db[col_name]
     query = col.find({
         'doi': {'$exists': True}
     })
     for doc in query:
-        valid = valid_a_doi(doi=doc['doi'], doc_data=doc)
+        valid = valid_a_doi(doi=doc['doi'], abstract=doc.get('abstract'))
         print(doc['doi'], valid)
+        if valid == False:
+            error_doi.append(doc['doi'])
         # break
+    return error_doi
 
 def foo():
     fake_dois = [
