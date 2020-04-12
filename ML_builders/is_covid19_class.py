@@ -29,7 +29,7 @@ covid19_classifier = spacy.load("./COVID19_model")
 # In[35]:
 
 # last_keyword_sweep = db.metadata.find_one({'data': 'last_keyword_sweep'})['datetime']
-entries = list(db.entries.find({"is_covid19_ml": {"$exists": False}}}, projection = ["abstract", 'title', "keywords", "keywords_ML", 'category_human', 'is_covid19', 'body_text']))
+entries = list(db.entries.find({"is_covid19_ml": {"$exists": False}}, projection = ["abstract", 'title', "keywords", "keywords_ML", 'category_human', 'is_covid19', 'body_text']))
 
 # In[48]:
 
