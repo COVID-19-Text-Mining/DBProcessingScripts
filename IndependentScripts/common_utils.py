@@ -54,6 +54,12 @@ FIVE_PERCENT_ABS_LEN = 414
 LEAST_ABS_SIMILARITY = 0.90
 IGNORE_BEGIN_END_ABS_SIMILARITY = 0.75
 
+def clean_title(title):
+    clean_title = title
+    clean_title = clean_title.lower()
+    clean_title = clean_title.strip()
+    return clean_title
+
 def text_similarity_by_char(text_1,
                             text_2,
                             quick_mode=False,
@@ -93,6 +99,7 @@ def text_similarity_by_char(text_1,
     # find the different strings
     diff_char_ratio = 1 - Levenshtein.distance(text_1, text_2) / float(
         max(min(len(text_1), len(text_2)), 1.0))
+    diff_char_ratio = max(diff_char_ratio, 0.0)
 
     if not quick_mode:
         similarity = (same_char_ratio + diff_char_ratio) / 2.0
@@ -266,6 +273,34 @@ def parse_names_list(name_list):
     return names
 
 ###########################################
+# communicate with doi.org
+###########################################
+
+def query_doiorg_by_doi(doi):
+    # goal
+    query_results = None
+    # query doi org
+    query_url = 'http://dx.doi.org/{}'.format(doi)
+    headers = {"accept": "application/x-bibtex"}
+
+    try:
+        query_results = requests.get(
+            query_url,
+            headers=headers
+        )
+    except:
+        raise ConnectionError(
+            'Request to doi.org failed when searching doi: {}!'.format(doi)
+        )
+    if query_results.reason != 'OK':
+        raise ValueError(
+            'Error result from doi.org when searching doi: {}!'.format(doi)
+        )
+
+    return query_results
+
+
+###########################################
 # communicate with crossref
 ###########################################
 
@@ -339,33 +374,79 @@ def query_crossref(query_params):
 
     return crossref_results
 
-###########################################
-# communicate with doi.org
-###########################################
 
-def query_doiorg_by_doi(doi):
-    # goal
-    query_results = None
-    # query doi org
-    query_url = 'http://dx.doi.org/{}'.format(doi)
-    headers = {"accept": "application/x-bibtex"}
+def valid_a_doi(doi, doc_data=None, abstract=None, title=None):
+    valid = True
 
-    try:
-        query_results = requests.get(
-            query_url,
-            headers=headers
-        )
-    except:
-        raise ConnectionError(
-            'Request to doi.org failed when searching doi: {}!'.format(doi)
-        )
-    if query_results.reason != 'OK':
-        raise ValueError(
-            'Error result from doi.org when searching doi: {}!'.format(doi)
-        )
+    # type check
+    if valid:
+        if not (isinstance(doi, str) and len(doi) > 0):
+            valid = False
+            print('DOI should be a non-empty str. doi: {} might be invalid'.format(doi))
 
-    return query_results
+    # check via crossref
+    if valid:
+        try:
+            query_result = query_crossref_by_doi(doi)
+        except Exception as e:
+            query_result = None
+            valid = False
+            print(e)
+        if (query_result is not None
+            and 'abstract' in query_result
+            and len(query_result['abstract']) > 0
+            and isinstance(abstract, str)
+            and len(abstract) > 0
+        ):
+            similarity = text_similarity_by_char(
+                query_result['abstract'],
+                abstract,
+                quick_mode=False,
+                enable_ignore_begin_end=True,
+                ignore_begin_end_text_len=FIVE_PERCENT_ABS_LEN,
+                ignore_begin_end_similarity=IGNORE_BEGIN_END_ABS_SIMILARITY,
+            )
+            if (len(query_result['abstract']) > LEAST_ABS_LEN
+                and len(abstract) > LEAST_ABS_LEN
+                and similarity < 0.6
+            ):
+                valid = False
+                print('Abstract does not match. doi: {} might be invalid!'.format(doi))
+                print('abstract similarity',  similarity)
 
+        if (query_result is not None
+            and 'title' in query_result
+            and isinstance(query_result['title'], list)
+            and len(query_result['title']) > 0
+            and isinstance(title, str)
+            and len(title) > 0
+        ):
+            similarity = text_similarity_by_char(
+                clean_title(query_result['title'][0]),
+                clean_title(title),
+                quick_mode=False,
+                enable_ignore_begin_end=True,
+                ignore_begin_end_text_len=FIVE_PERCENT_TITLE_LEN,
+                ignore_begin_end_similarity=IGNORE_BEGIN_END_TITLE_SIMILARITY,
+            )
+            if (len(query_result['title'][0]) > LEAST_TITLE_LEN
+                and len(title) > LEAST_TITLE_LEN
+                and similarity < 0.6
+            ):
+                valid = False
+                print('Title does not match. doi: {} might be invalid!'.format(doi))
+                print('Title similarity',  similarity)
+
+    if valid:
+        # check via doi.org
+        try:
+            query_result = query_doiorg_by_doi(doi)
+        except Exception as e:
+            query_result = None
+            valid = False
+            print(e)
+
+    return valid
 
 ###########################################
 # communicate with mongodb
