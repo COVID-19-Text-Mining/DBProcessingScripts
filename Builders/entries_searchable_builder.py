@@ -116,7 +116,15 @@ def strip_down_entry(entry):
         entry_searchable['has_month'] = False
         entry_searchable['has_day'] = False
 
-
+    if 'similar_abstracts' in entry_searchable.keys():
+        similar_abstracts_json = []
+        for a in entry_searchable['similar_abstracts']:
+            doi = a[1]
+            matching_entry = db.entries.find_one({"doi": doi})
+            fields_to_include = ['title', 'authors', 'abstract', 'link']
+            matching_entry = {k:v for k,v in matching_entry.items() if k in fields_to_include}
+            similar_abstracts_json.append(matching_entry)
+        entry_searchable['similar_abstracts_json'] = json.dumps(similar_abstracts_json)
     try:
         json.dumps(entry_searchable)
         return entry_searchable

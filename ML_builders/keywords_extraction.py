@@ -1,18 +1,30 @@
+import importlib
+
+def found_package(package_name):
+    pkg_check = importlib.util.find_spec(package_name)
+    found = pkg_check is not None
+    return found
+
+
 import collections
 import json
 from pprint import pprint
-
 import numpy as np
 from bson import json_util
-import summa
-import yake
-import pke
-import mrakun
 import regex
 import string
 from nltk.corpus import stopwords
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud, STOPWORDS
+
+if found_package('summa'):
+    import summa
+if found_package('yake'):
+    import yake
+if found_package('pke'):
+    import pke
+if found_package('mrakun'):
+    import mrakun
 
 class KeywordsExtractorBase():
     def __init__(self, **kwargs):
@@ -852,65 +864,89 @@ if __name__ == '__main__':
     #     out_path='../scratch/papers_w_keywords.json'
     # )
 
-    plot_word_cloud(
-        in_path='../scratch/papers_w_keywords.json',
-        out_path='../scratch/keywords_word_cloud.png',
-    )
-
-    # keyword_tester(
-    #     keyword_extractors=[
-    #         KeywordsExtractorSumma(
-    #             name='Summa_0',
-    #             split=True,
-    #             scores=True,
-    #             use_longest_phrase=True,
-    #         ),
-    #         KeywordsExtractorYake(
-    #             name='Yake_20',
-    #             max_ngram_size=3,
-    #             window_size=1,
-    #             top=20,
-    #             use_longest_phrase=True,
-    #         ),
-    #         # KeywordsExtractorTfIdf(
-    #         #     max_ngram_size=3,
-    #         #     # df='../rsc/tf_abs_2.tsv.gz',
-    #         # ),
-    #         # KeywordsExtractorKPMiner(
-    #         #     # df='../rsc/tf_abs_2.tsv.gz',
-    #         # ),
-    #         # KeywordsExtractorSingleRank(),
-    #         # KeywordsExtractorTopicRank(),
-    #         # KeywordsExtractorTopicalPageRank(
-    #         #     lda_model='../scratch/pke_lda_0',
-    #         # ),
-    #         # KeywordsExtractorPositionRank(),
-    #         # KeywordsExtractorMultipartiteRank(),
-    #         KeywordsExtractorRaKUn(
-    #             name='RaKUn_0',
-    #             distance_threshold=2,
-    #             pair_diff_length=2,
-    #             bigram_count_threhold=2,
-    #             num_tokens=[1,2,3],
-    #             max_similar=10,
-    #             max_occurrence=3,
-    #             score_threshold=None,
-    #             use_longest_phrase=True,
-    #         ),
-    #         KeywordsExtractorRaKUn(
-    #             name='RaKUn_3',
-    #             distance_threshold=2,
-    #             pair_diff_length=2,
-    #             bigram_count_threhold=2,
-    #             num_tokens=[1, 2, 3],
-    #             max_similar=10,
-    #             max_occurrence=3,
-    #             score_threshold=0.20,
-    #             use_longest_phrase=True,
-    #         ),
-    #
-    #
-    #     ],
-    #     in_path='../scratch/paper_samples.json',
-    #     out_path='../scratch/keywords_test.html',
+    # plot_word_cloud(
+    #     in_path='../scratch/papers_w_keywords.json',
+    #     out_path='../scratch/keywords_word_cloud.png',
     # )
+
+    keyword_tester(
+        keyword_extractors=[
+            KeywordsExtractorSumma(
+                name='Summa_0',
+                split=True,
+                scores=True,
+                use_longest_phrase=True,
+            ),
+            KeywordsExtractorYake(
+                name='Yake_20',
+                max_ngram_size=3,
+                window_size=1,
+                top=20,
+                use_longest_phrase=True,
+            ),
+            # KeywordsExtractorTfIdf(
+            #     max_ngram_size=3,
+            #     # df='../rsc/tf_abs_2.tsv.gz',
+            # ),
+            # KeywordsExtractorKPMiner(
+            #     # df='../rsc/tf_abs_2.tsv.gz',
+            # ),
+            # KeywordsExtractorSingleRank(),
+            # KeywordsExtractorTopicRank(),
+            # KeywordsExtractorTopicalPageRank(
+            #     lda_model='../scratch/pke_lda_0',
+            # ),
+            # KeywordsExtractorPositionRank(),
+            # KeywordsExtractorMultipartiteRank(),
+            KeywordsExtractorRaKUn(
+                name='RaKUn_0',
+                distance_threshold=2,
+                pair_diff_length=2,
+                bigram_count_threhold=2,
+                num_tokens=[1,2,3],
+                max_similar=10,
+                max_occurrence=3,
+                score_threshold=None,
+                use_longest_phrase=True,
+            ),
+            KeywordsExtractorRaKUn(
+                name='RaKUn_1',
+                distance_threshold=2,
+                pair_diff_length=2,
+                bigram_count_threhold=2,
+                num_tokens=[1, 2, 3],
+                max_similar=10,
+                max_occurrence=3,
+                num_keywords=20,
+                score_threshold=None,
+                use_longest_phrase=True,
+            ),
+            KeywordsExtractorRaKUn(
+                name='RaKUn_2',
+                distance_threshold=2,
+                pair_diff_length=2,
+                bigram_count_threhold=2,
+                num_tokens=[1, 2, 3],
+                max_similar=10,
+                max_occurrence=3,
+                num_keywords=30,
+                score_threshold=None,
+                use_longest_phrase=True,
+            ),
+            KeywordsExtractorRaKUn(
+                name='RaKUn_3',
+                distance_threshold=2,
+                pair_diff_length=2,
+                bigram_count_threhold=2,
+                num_tokens=[1, 2, 3],
+                max_similar=10,
+                max_occurrence=3,
+                score_threshold=0.20,
+                use_longest_phrase=True,
+            ),
+
+
+        ],
+        in_path='../scratch/paper_samples.json',
+        out_path='../scratch/keywords_test2.html',
+    )
