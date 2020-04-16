@@ -151,7 +151,7 @@ def strip_down_entry(entry):
 
 
 
-for doc in tqdm(list(db.entries.find(entries_to_rebuild_query))):
+for doc in tqdm(list(db.entries.find(entries_to_build_query))):
     if use_test_db:
         collection_name = "entries_searchable_test"
     else: 
