@@ -42,6 +42,21 @@ def doi_existence_stat(mongo_db):
         query_w_crossref_tried = col.find({'tried_crossref_doi': True})
         query_w_csv_tried = col.find({'tried_csv_doi': True})
         query_w_cord_id = col.find({'paper_id': {'$exists': True}})
+        query_w_doi_title_empty = col.find({
+            'doi': {'$exists': True},
+            'metadata': {'$exists': True},
+            '$where': 'this.metadata.title.length == 0',
+        })
+        query_w_doi_abs_empty = col.find({
+            'doi': {'$exists': True},
+            'abstract': {'$exists': True},
+            '$where': 'this.abstract.length == 0',
+        })
+        query_w_doi_author_empty = col.find({
+            'doi': {'$exists': True},
+            'metadata': {'$exists': True},
+            '$where': 'this.metadata.authors.length == 0',
+        })
 
         query_wo_doi_no_cr_csv = col.find({
             'doi': {'$exists': False},
@@ -74,6 +89,9 @@ def doi_existence_stat(mongo_db):
         print('query_w_doi', query_w_doi.count())
         print('query_w_doi_len_gt_0', query_w_doi_len_gt_0.count())
         print('query_w_crossref_tried', query_w_crossref_tried.count())
+        print('query_w_doi_title_empty', query_w_doi_title_empty.count())
+        print('query_w_doi_abs_empty', query_w_doi_abs_empty.count())
+        print('query_w_doi_author_empty', query_w_doi_author_empty.count())
         print('query_w_csv_tried', query_w_csv_tried.count())
         print('query_w_cord_id', query_w_cord_id.count())
         print('query_wo_doi_no_cr_csv', query_wo_doi_no_cr_csv.count())
@@ -358,8 +376,6 @@ def add_crossref_by_doi(mongo_db):
 
 def add_useful_fields(mongo_db):
     for col_name in mongo_db.collection_names():
-        # if col_name != 'CORD_custom_license':
-        #     continue
         if col_name not in PAPER_COLLECTIONS:
             continue
         print('col_name', col_name)
@@ -439,6 +455,7 @@ def add_useful_fields(mongo_db):
         )
         query = list(query)
         print('len(query) crossref_raw_result', len(query))
+        update_counter = collections.Counter()
         for doc in query:
             set_params = {}
             # journal_name
@@ -509,20 +526,89 @@ def add_useful_fields(mongo_db):
                 if len(crossref_reference) > 0:
                     set_params['crossref_reference'] = crossref_reference
 
-            # update doc
-            if len(set_params) > 0:
-                try:
-                    col.find_one_and_update(
-                        {"_id": doc['_id']},
-                        {
-                            "$set": set_params,
-                        }
-                    )
-                except Exception as e:
-                    print('doc _id', doc['_id'])
-                    print('set_params', set_params)
-                    print(e)
-                    raise e
+            # get metadata
+            metadata = None
+            if ('metadata' in doc):
+                metadata = doc['metadata']
+
+
+            # title
+            # get title
+            title = None
+            if metadata is not None:
+                if ('title' in metadata
+                        and isinstance(metadata['title'], str)
+                        and len(metadata['title'].strip()) > 0
+                ):
+                    title = metadata['title']
+            if (title is None
+                and 'title' in doc['crossref_raw_result']
+                and isinstance(doc['crossref_raw_result']['title'], list)
+                and len(doc['crossref_raw_result']['title']) > 0
+                and len(doc['crossref_raw_result']['title'][0]) > 0
+            ):
+                update_counter['title'] += 1
+                if 'doi' in doc:
+                    update_counter['title_doi'] += 1
+
+
+            # abstract
+            # get abstract
+            abstract = None
+            if 'abstract' in doc and len(doc['abstract']) > 0:
+                abstract = ''
+                for fragment in doc['abstract']:
+                    if ('text' in fragment
+                            and isinstance(fragment['text'], str)
+                            and len(fragment['text']) > 0
+                    ):
+                        abstract += fragment['text'].strip() + ' '
+
+                abstract = abstract.strip()
+                if len(abstract) == 0:
+                    abstract = None
+
+            if (abstract is None
+                and 'abstract' in doc['crossref_raw_result']
+                and isinstance(doc['crossref_raw_result']['abstract'], str)
+                and len(doc['crossref_raw_result']['abstract']) > 0
+            ):
+                update_counter['abstract'] += 1
+                if 'doi' in doc:
+                    update_counter['abstract_doi'] += 1
+
+            # author
+            # get author
+            author_names = None
+            if metadata is not None:
+                author_names = metadata.get('authors')
+                if not (isinstance(author_names, list) and len(author_names) > 0):
+                    author_names = None
+            if (author_names is None
+                and 'author' in doc['crossref_raw_result']
+                and isinstance(doc['crossref_raw_result']['author'], list)
+                and len(doc['crossref_raw_result']['author']) > 0
+            ):
+                update_counter['author'] += 1
+                if 'doi' in doc:
+                    update_counter['authors_doi'] += 1
+
+
+            # # update doc
+            # if len(set_params) > 0:
+            #     try:
+            #         col.find_one_and_update(
+            #             {"_id": doc['_id']},
+            #             {
+            #                 "$set": set_params,
+            #             }
+            #         )
+            #     except Exception as e:
+            #         print('doc _id', doc['_id'])
+            #         print('set_params', set_params)
+            #         print(e)
+            #         raise e
+    print('update_counter', update_counter)
 
 
 def assign_suggested_doi(mongo_db):
@@ -1392,13 +1478,13 @@ if __name__ == '__main__':
     db = get_mongo_db('../config.json')
     print(db.collection_names())
 
-    # doi_existence_stat(db)
+    doi_existence_stat(db)
 
     # check_doc_wo_doi(db)
 
     # valid_CORD_doi(db)
 
-    add_crossref_by_doi(db)
+    # add_crossref_by_doi(db)
 
     # add_useful_fields(db)
 
