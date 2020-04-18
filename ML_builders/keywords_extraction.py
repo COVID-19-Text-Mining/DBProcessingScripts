@@ -13,6 +13,8 @@ import numpy as np
 from bson import json_util
 import regex
 import string
+import copy
+import spacy
 from nltk.corpus import stopwords
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud, STOPWORDS
@@ -34,6 +36,7 @@ class KeywordsExtractorBase():
         self.score_threshold = kwargs.get('score_threshold', None)
         self.use_longest_phrase = kwargs.get('use_longest_phrase', False)
         self.only_extractive = kwargs.get('only_extractive', True)
+        self.ignore_shorter_keywords = kwargs.get('ignore_shorter_keywords', True)
 
     def process(self, text):
         words_and_scores = self._process(text)
@@ -44,7 +47,11 @@ class KeywordsExtractorBase():
             ))
         if self.only_extractive:
             words_and_scores = list(filter(
-                lambda x: regex.search(r'\b{}\b'.format(x[0]), text, flags=regex.IGNORECASE),
+                lambda x: regex.search(
+                    r'\b{}\b'.format(regex.escape(x[0], special_only=True)),
+                    text,
+                    flags=regex.IGNORECASE
+                ),
                 words_and_scores
             ))
         if self.output_format == 'words_and_scores':
@@ -52,7 +59,11 @@ class KeywordsExtractorBase():
         elif self.output_format == 'words_only':
             keywords = list(set([item[0] for item in words_and_scores]))
             if self.use_longest_phrase:
-                keywords = self.get_longest_phrase(text=text, keywords=keywords)
+                keywords, _ = self.get_longest_phrase(
+                    text=text,
+                    keywords=keywords,
+                    ignore_shorter=self.ignore_shorter_keywords,
+                )
             return keywords
         else:
             raise AttributeError(
@@ -74,7 +85,11 @@ class KeywordsExtractorBase():
             t['background_color'] = []
 
         for w in keywords:
-            matches = regex.finditer(r'\b{}\b'.format(w), text, flags=regex.IGNORECASE)
+            matches = regex.finditer(
+                r'\b{}\b'.format(regex.escape(w, special_only=True)),
+                text,
+                flags=regex.IGNORECASE
+            )
             all_hightlights.extend([
                 {
                     'start': m.start(),
@@ -109,11 +124,15 @@ class KeywordsExtractorBase():
                 )
         return hightlighted_html
 
-    def get_longest_phrase(self, text, keywords):
+    def keywords_to_highlights(self, text, keywords):
         # get all matched in original text
         all_hightlights = []
         for w in keywords:
-            matches = regex.finditer(r'\b{}\b'.format(w), text, flags=regex.IGNORECASE)
+            matches = regex.finditer(
+                r'\b{}\b'.format(regex.escape(w, special_only=True)),
+                text,
+                flags=regex.IGNORECASE
+            )
             all_hightlights.extend([
                 {
                     'start': m.start(),
@@ -124,38 +143,127 @@ class KeywordsExtractorBase():
             ])
 
         all_hightlights = sorted(all_hightlights, key=lambda x: x['start'])
+        return all_hightlights
+
+    def keywords_to_long_highlights(self, text, keywords):
+        # get all matched in original text
+        all_hightlights = self.keywords_to_highlights(text=text, keywords=keywords)
 
         # connect adjecent keywords
-        long_hightlights = []
+        long_highlights = []
         for h in all_hightlights:
-            if len(long_hightlights) == 0:
-                long_hightlights.append(h)
+            if len(long_highlights) == 0:
+                long_highlights.append(h)
                 continue
-            if text[long_hightlights[-1]['end']: h['start']].strip() == '':
+            if text[long_highlights[-1]['end']: h['start']].strip() == '':
                 # merge
-                long_hightlights[-1]['end'] = max(long_hightlights[-1]['end'], h['end'])
-                long_hightlights[-1]['text'] = text[
-                   long_hightlights[-1]['start']: long_hightlights[-1]['end']
+                long_highlights[-1]['end'] = max(long_highlights[-1]['end'], h['end'])
+                long_highlights[-1]['text'] = text[
+                   long_highlights[-1]['start']: long_highlights[-1]['end']
                 ]
             else:
-                long_hightlights.append(h)
+                long_highlights.append(h)
+        return long_highlights
 
+    def highlights_to_keywords(self, long_highlights, ignore_shorter=True):
         # ignore repeated but shorter keywords
-        long_hightlights = sorted(long_hightlights, key=lambda x: len(x['text']), reverse=True)
+        long_highlights = sorted(long_highlights, key=lambda x: len(x['text']), reverse=True)
         final_keywords = []
-        for h in long_hightlights:
+        final_highlights = []
+        for h in long_highlights:
             to_add = True
             for k in final_keywords:
-                if regex.search(r'\b{}\b'.format(h['text']), k['text'], flags=regex.IGNORECASE):
-                    to_add = False
-                    break
+                if ignore_shorter:
+                    if regex.search(
+                            r'\b{}\b'.format(regex.escape(h['text'], special_only=True)),
+                            k['text'],
+                            flags=regex.IGNORECASE
+                    ):
+                        to_add = False
+                        break
+                else:
+                    if h['text'].lower() == k['text'].lower():
+                        to_add = False
+                        break
             if to_add:
                 final_keywords.append(h)
         final_keywords = [x['text'] for x in final_keywords]
-        # final_keywords = [x['text'] for x in all_hightlights]
-        # final_keywords = keywords
-        return final_keywords
+        final_keywords_set_lower = set([x.lower() for x in final_keywords])
+        final_highlights = list(filter(
+            lambda h: h['text'].lower() in final_keywords_set_lower, long_highlights
+        ))
+        final_highlights = sorted(final_highlights, key=lambda x: x['start'])
+        return final_keywords, final_highlights
 
+    def get_longest_phrase(self, text, keywords, ignore_shorter=True):
+        long_highlights = self.keywords_to_long_highlights(text=text, keywords=keywords)
+        final_keywords, final_highlights = self.highlights_to_keywords(
+            long_highlights=long_highlights,
+            ignore_shorter=ignore_shorter
+        )
+        return final_keywords, final_highlights
+
+    def reformat_tokens(self, tokens):
+        reformated_tokens = []
+        for i, t in enumerate(tokens):
+            if not isinstance(t, dict):
+                if 'start' in dir(t) and 'end' in dir(t) and 'text' in t:
+                    # chemdataextractor token format
+                    reformated_tokens.append({
+                        'start': t.start,
+                        'end': t.end,
+                        'text': t.text,
+                    })
+                elif 'idx' in dir(t) and 'text' in dir(t):
+                    # spacy token format
+                    reformated_tokens.append({
+                        'start': t.idx,
+                        'end': t.idx+len(t.text),
+                        'text': t.text,
+                    })
+            else:
+                reformated_tokens.append({
+                    'start': t['start'],
+                    'end': t['end'],
+                    'text': t['text'],
+                })
+            reformated_tokens[-1]['id'] = i
+        return reformated_tokens
+
+    def _reformat_text_spans(self, text_spans, default_label):
+        reformated_spans = copy.deepcopy(text_spans)
+        for s in reformated_spans:
+            if 'label' not in s:
+                s['label'] = default_label
+        return reformated_spans
+
+    def text_spans_to_token_spans(self,
+                                  text_spans,
+                                  tokens,
+                                  default_label='KEYWORD'):
+        token_spans = []
+
+        text_spans = self._reformat_text_spans(
+            text_spans,
+            default_label=default_label
+        )
+        tokens = self.reformat_tokens(tokens)
+        for s in text_spans:
+            text_tokens = list(filter(
+                lambda t: t['start'] >= s['start'] and t['end'] <= s['end'],
+                tokens
+            ))
+            if (len(text_tokens) > 0
+                and text_tokens[0]['start'] == s['start']
+                and text_tokens[-1]['end'] == s['end']):
+                token_spans.append({
+                    'start': s['start'],
+                    'end': s['end'],
+                    'label': s['label'],
+                    'token_start': text_tokens[0]['id'],
+                    'token_end': text_tokens[-1]['id'],
+                })
+        return token_spans
 
     def full_tokenize(self, text):
         tokens = []
@@ -822,6 +930,58 @@ def extract_keywords(in_path='../rsc/samples_21181.json',
         json.dump(papers_w_keywords, fw, indent=2)
 
 
+def extract_keywords_in_prodify_format(in_path='../rsc/samples_21181.json',
+                                      out_path='../scratch/prodigy_abstracts_21181.jsonl'):
+    with open(in_path, 'r') as fr:
+        papers = json.load(fr)
+
+    print('len(papers)', len(papers))
+
+    papers_w_keywords = []
+    extractor = KeywordsExtractorRaKUn(
+        name='RaKUn_0',
+        distance_threshold=2,
+        pair_diff_length=2,
+        bigram_count_threhold=2,
+        num_tokens=[1, 2, 3],
+        max_similar=10,
+        max_occurrence=3,
+        score_threshold=None,
+        use_longest_phrase=True,
+        ignore_shorter_keywords=False,
+    )
+    nlp = spacy.load('en', disable=['parser', 'ner'])
+    for p in papers:
+        abstract = KeywordsExtractorBase().clean_html_tag(p['abstract'])
+        try:
+            keywords = extractor.process(abstract)
+        except:
+            print('Error')
+            print(abstract)
+            continue
+
+        highlights = KeywordsExtractorBase().keywords_to_long_highlights(
+            text=abstract,
+            keywords=keywords,
+        )
+        doc = nlp(abstract)
+        prodigy_spans = KeywordsExtractorBase().text_spans_to_token_spans(
+            text_spans=highlights,
+            tokens=doc,
+            default_label='KEYWORD',
+        )
+        papers_w_keywords.append({
+            'text': p['abstract'],
+            'keywords': keywords,
+            'spans': prodigy_spans,
+            'meta': {'source': p['doi']},
+        })
+
+    with open(out_path, 'w') as fw:
+        for p in papers_w_keywords:
+            json.dump(p, fw)
+            fw.write('\n')
+
 def plot_word_cloud(in_path='../scratch/papers_w_keywords.json',
                     out_path='../scratch/keywords_word_cloud.png'):
     with open(in_path, 'r') as fr:
@@ -864,89 +1024,94 @@ if __name__ == '__main__':
     #     out_path='../scratch/papers_w_keywords.json'
     # )
 
+    extract_keywords_in_prodify_format(
+        in_path='../rsc/samples_21181.json',
+        out_path='../scratch/prodigy_abstracts_21181.jsonl'
+    )
+
     # plot_word_cloud(
     #     in_path='../scratch/papers_w_keywords.json',
     #     out_path='../scratch/keywords_word_cloud.png',
     # )
-
-    keyword_tester(
-        keyword_extractors=[
-            KeywordsExtractorSumma(
-                name='Summa_0',
-                split=True,
-                scores=True,
-                use_longest_phrase=True,
-            ),
-            KeywordsExtractorYake(
-                name='Yake_20',
-                max_ngram_size=3,
-                window_size=1,
-                top=20,
-                use_longest_phrase=True,
-            ),
-            # KeywordsExtractorTfIdf(
-            #     max_ngram_size=3,
-            #     # df='../rsc/tf_abs_2.tsv.gz',
-            # ),
-            # KeywordsExtractorKPMiner(
-            #     # df='../rsc/tf_abs_2.tsv.gz',
-            # ),
-            # KeywordsExtractorSingleRank(),
-            # KeywordsExtractorTopicRank(),
-            # KeywordsExtractorTopicalPageRank(
-            #     lda_model='../scratch/pke_lda_0',
-            # ),
-            # KeywordsExtractorPositionRank(),
-            # KeywordsExtractorMultipartiteRank(),
-            KeywordsExtractorRaKUn(
-                name='RaKUn_0',
-                distance_threshold=2,
-                pair_diff_length=2,
-                bigram_count_threhold=2,
-                num_tokens=[1,2,3],
-                max_similar=10,
-                max_occurrence=3,
-                score_threshold=None,
-                use_longest_phrase=True,
-            ),
-            KeywordsExtractorRaKUn(
-                name='RaKUn_1',
-                distance_threshold=2,
-                pair_diff_length=2,
-                bigram_count_threhold=2,
-                num_tokens=[1, 2, 3],
-                max_similar=10,
-                max_occurrence=3,
-                num_keywords=20,
-                score_threshold=None,
-                use_longest_phrase=True,
-            ),
-            KeywordsExtractorRaKUn(
-                name='RaKUn_2',
-                distance_threshold=2,
-                pair_diff_length=2,
-                bigram_count_threhold=2,
-                num_tokens=[1, 2, 3],
-                max_similar=10,
-                max_occurrence=3,
-                num_keywords=30,
-                score_threshold=None,
-                use_longest_phrase=True,
-            ),
-            KeywordsExtractorRaKUn(
-                name='RaKUn_3',
-                distance_threshold=2,
-                pair_diff_length=2,
-                bigram_count_threhold=2,
-                num_tokens=[1, 2, 3],
-                max_similar=10,
-                max_occurrence=3,
-                score_threshold=0.20,
-                use_longest_phrase=True,
-            ),
-
-
-        ],
-        in_path='../scratch/paper_samples.json',
-        out_path='../scratch/keywords_test2.html',
-    )
+    #
+    # keyword_tester(
+    #     keyword_extractors=[
+    #         KeywordsExtractorSumma(
+    #             name='Summa_0',
+    #             split=True,
+    #             scores=True,
+    #             use_longest_phrase=True,
+    #         ),
+    #         KeywordsExtractorYake(
+    #             name='Yake_20',
+    #             max_ngram_size=3,
+    #             window_size=1,
+    #             top=20,
+    #             use_longest_phrase=True,
+    #         ),
+    #         # KeywordsExtractorTfIdf(
+    #         #     max_ngram_size=3,
+    #         #     # df='../rsc/tf_abs_2.tsv.gz',
+    #         # ),
+    #         # KeywordsExtractorKPMiner(
+    #         #     # df='../rsc/tf_abs_2.tsv.gz',
+    #         # ),
+    #         # KeywordsExtractorSingleRank(),
+    #         # KeywordsExtractorTopicRank(),
+    #         # KeywordsExtractorTopicalPageRank(
+    #         #     lda_model='../scratch/pke_lda_0',
+    #         # ),
+    #         # KeywordsExtractorPositionRank(),
+    #         # KeywordsExtractorMultipartiteRank(),
+    #         KeywordsExtractorRaKUn(
+    #             name='RaKUn_0',
+    #             distance_threshold=2,
+    #             pair_diff_length=2,
+    #             bigram_count_threhold=2,
+    #             num_tokens=[1,2,3],
+    #             max_similar=10,
+    #             max_occurrence=3,
+    #             score_threshold=None,
+    #             use_longest_phrase=True,
+    #         ),
+    #         KeywordsExtractorRaKUn(
+    #             name='RaKUn_1',
+    #             distance_threshold=2,
+    #             pair_diff_length=2,
+    #             bigram_count_threhold=2,
+    #             num_tokens=[1, 2, 3],
+    #             max_similar=10,
+    #             max_occurrence=3,
+    #             num_keywords=20,
+    #             score_threshold=None,
+    #             use_longest_phrase=True,
+    #         ),
+    #         KeywordsExtractorRaKUn(
+    #             name='RaKUn_2',
+    #             distance_threshold=2,
+    #             pair_diff_length=2,
+    #             bigram_count_threhold=2,
+    #             num_tokens=[1, 2, 3],
+    #             max_similar=10,
+    #             max_occurrence=3,
+    #             num_keywords=30,
+    #             score_threshold=None,
+    #             use_longest_phrase=True,
+    #         ),
+    #         KeywordsExtractorRaKUn(
+    #             name='RaKUn_3',
+    #             distance_threshold=2,
+    #             pair_diff_length=2,
+    #             bigram_count_threhold=2,
+    #             num_tokens=[1, 2, 3],
+    #             max_similar=10,
+    #             max_occurrence=3,
+    #             score_threshold=0.20,
+    #             use_longest_phrase=True,
+    #         ),
+    #
+    #
+    #     ],
+    #     in_path='../scratch/paper_samples.json',
+    #     out_path='../scratch/keywords_test2.html',
+    # )
