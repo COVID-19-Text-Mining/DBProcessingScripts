@@ -1,5 +1,6 @@
 import os
 import pymongo
+from pymongo.errors import OperationFailure
 import sys
 import json
 import datetime
@@ -7,6 +8,7 @@ import re
 from tqdm import tqdm
 from pprint import pprint
 import json
+import datetime 
 
 client = pymongo.MongoClient(os.getenv("COVID_HOST"), username=os.getenv("COVID_USER"),
                              password=os.getenv("COVID_PASS"), authSource=os.getenv("COVID_DB"))
@@ -16,8 +18,16 @@ use_test_db = False
 
 #Rebuild the entire entries collection
 rebuild = False
+
+if rebuild:
+    entries_to_build_query = {}
+else:
+    yesterday = datetime.datetime.today() - datetime.timedelta(days=1)
+    entries_to_build_query = {"_bt": { "$gte" : yesterday }}
+
 #Keys that are allowed in the entries database to keep it clean and minimal
 entries_keys = [
+    '_id',
     'title',
     'authors',
     'doi',
@@ -46,6 +56,12 @@ def strip_down_entry(entry):
     #If not possible, return None
     entry_searchable = dict()
 
+    entry_searchable["is_synced"] = False
+
+    # keep same ids between entries and entries_searchable
+    entry_searchable["_id"] = str(entry["_id"])
+    
+    # turn list fields into strings
     for possibly_list_field in ['title', 'doi', 'journal', 'abstract', 'link', 'is_covid19', 'is_covid19_ml', 'has_year', 'has_month', 'has_day', 'is_covid19_ml_bool']:
         if possibly_list_field in entry.keys():
             if isinstance(entry[possibly_list_field], list):
@@ -116,15 +132,26 @@ def strip_down_entry(entry):
         entry_searchable['has_month'] = False
         entry_searchable['has_day'] = False
 
+    if 'similar_abstracts' in entry_searchable.keys():
+        similar_abstracts_json = []
+        for a in entry_searchable['similar_abstracts']:
+            doi = a[1]
+            matching_entry = db.entries.find_one({"doi": doi})
+            fields_to_include = ['title', 'authors', 'abstract', 'link']
+            matching_entry = {k:v for k,v in matching_entry.items() if k in fields_to_include}
+            similar_abstracts_json.append(matching_entry)
+        entry_searchable['similar_abstracts_json'] = json.dumps(similar_abstracts_json)
 
     try:
         json.dumps(entry_searchable)
         return entry_searchable
-    except TypeError:
+    except TypeError as e:
+        print(e)
         return None
 
 
-for doc in tqdm(list(db.entries.find())):
+
+for doc in tqdm(list(db.entries.find(entries_to_build_query))):
     if use_test_db:
         collection_name = "entries_searchable_test"
     else: 
@@ -133,6 +160,10 @@ for doc in tqdm(list(db.entries.find())):
     if stripped_down:
         existing_entry = db[collection_name].find_one({"doi": doc["doi"]})
         if existing_entry:
-            db[collection_name].find_one_and_replace({"doi": doc["doi"]}, stripped_down)
+            try:
+                db[collection_name].find_one_and_replace({"doi": doc["doi"]}, stripped_down)
+            except OperationFailure:
+                db[collection_name].delete_one({"doi": doc["doi"]})
+                db[collection_name].insert_one(stripped_down)
         else:
             db[collection_name].insert_one(stripped_down)
