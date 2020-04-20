@@ -55,7 +55,7 @@ def try_parse_pdf_hierarchy(pdf_file):
 
 def convert_chemrxiv_to_vespa(doc, db):
     # paper_fs = gridfs.GridFS(
-    #     db, collection='Scraper_connect_biorxiv_org_fs')
+    #     db, collection='???')
     # pdf_file = paper_fs.get(doc['PDF_gridfs_id'])
 
     # parsed_content = try_parse_pdf_hierarchy(pdf_file)
@@ -90,10 +90,11 @@ def convert_chemrxiv_to_vespa(doc, db):
     }
 
     for person in doc["Authors"]:
+        fn, ln = person['Name'].rsplit(' ', maxsplit=1)
         parsed_doc['authors'].append({
-            'first': person['Name']['fn'],
-            'last': person['Name']['ln'],
-            'name': f'{person["Name"]["fn"]} {person["Name"]["ln"]}'
+            'first': fn,
+            'last': ln,
+            'name': person['Name']
         })
 
     return parsed_doc
