@@ -4,6 +4,7 @@ from datetime import datetime
 from io import BytesIO
 
 import gridfs
+from tqdm import tqdm
 
 from pdf_extractor.paragraphs import extract_paragraphs_pdf
 from utils import clean_title
@@ -137,7 +138,6 @@ if __name__ == '__main__':
         }}
     ])
 
-    for doc in new_documents:
+    for doc in tqdm(new_documents):
         ret = convert_biorxiv_to_vespa(doc, db)
         target_collection.insert(ret)
-        break
