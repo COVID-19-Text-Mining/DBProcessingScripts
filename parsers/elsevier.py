@@ -145,7 +145,7 @@ class ElsevierParser(Parser):
         """ Returns the human-written summary of a document as a <class 'list'> of <class 'str'>"""
         return None
 
-    def _parse_is_pre_proof(self, doc):
+    def _parse_is_preprint(self, doc):
         """ Returns a <class 'bool'> specifying whether the document is a preprint.
         If it's not immediately clear from the source it's coming from, return None."""
         return False
