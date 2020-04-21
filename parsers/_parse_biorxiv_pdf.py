@@ -49,7 +49,8 @@ def handle_doc(file_obj):
 
     # check again!
     doc = collection.find_one({'_id': file_obj['_id']})
-    if doc['pdf_extraction_version'] == parser_version and \
+    if 'pdf_extraction_version' in doc and\
+            doc['pdf_extraction_version'] == parser_version and \
             'parsed_date' in doc and \
             doc['parsed_date'] > doc['uploadDate']:
         return None, None
