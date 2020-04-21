@@ -46,6 +46,14 @@ def auth_db():
 
 def handle_doc(file_obj):
     collection, fs = auth_db()
+
+    # check again!
+    doc = collection.find_one({'_id': file_obj['_id']})
+    if doc['pdf_extraction_version'] == parser_version and \
+            'parsed_date' in doc and \
+            doc['parsed_date'] > doc['uploadDate']:
+        return None, None
+
     pdf_file = fs.find_one(file_obj['_id'])
     data = BytesIO(pdf_file.read())
     try:
@@ -82,7 +90,11 @@ def process_documents(processes):
     collection.create_index('parsed_date')
     collection.create_index('uploadDate')
     query = {
-        '$expr': {'$lt': ['$parsed_date', '$uploadDate']}
+        '$or': [
+            {'$expr': {'$lt': ['$parsed_date', '$uploadDate']}},
+            {'pdf_extraction_version': {'$ne': parser_version}},
+        ]
+
     }
     with Pool(processes=processes) as pool:
         for paragraphs, exc in tqdm(
