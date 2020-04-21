@@ -11,37 +11,6 @@ class ElsevierParser(Parser):
     Parser for documents from the Elsevier Novel Coronavirus Information Center.
     """
 
-    keys = [
-        "doi",
-        "title",
-        "authors",
-        "journal",
-        "journal_short",
-        "publication_date",
-        "abstract",
-        "origin",
-        "source_display",
-        "last_updated",
-        "body_text",
-        "has_full_text",
-        "citations",
-        "cited_by",
-        "link",
-        "category_human",
-        "keywords",
-        "summary_human",
-        "has_year",
-        "has_month",
-        "has_day",
-        "is_pre_proof",
-        "is_covid19",
-        "license",
-        "cord_uid",
-        "pmcid",
-        "pubmed_id",
-        "who_covidence",
-    ]
-
     def _parse_doi(self, doc):
         """ Returns the DOI of a document as a <class 'str'>"""
         return doc["coredata"].get('prism:doi', None)
