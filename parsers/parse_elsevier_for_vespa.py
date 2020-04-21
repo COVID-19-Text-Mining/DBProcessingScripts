@@ -103,7 +103,7 @@ def format_for_vespa(flat_elsevier_entry):
     title = flat_elsevier_entry.get('dc:title', None)
     abstract = flat_elsevier_entry.get('dc:description', None)
     sha = None
-    source = flat_elsevier_entry.get('Elsevier Novel Coronavirus Information Center')
+    source = "Elsevier Novel Coronavirus Information Center"
     full_text_dir = None
     license = flat_elsevier_entry.get('openaccessUserLicense', None)
     journal = flat_elsevier_entry.get('prism:publicationName', None)
