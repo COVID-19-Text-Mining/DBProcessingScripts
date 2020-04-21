@@ -16,7 +16,7 @@ db = MongoClient(
 )
 db_connected = False
 _collection = None
-parser_version = 'biorxiv_20200421'
+parser_version = 'chemrxiv_20200421'
 laparams = {
     'char_margin': 3.0,
     'line_margin': 2.5
@@ -35,9 +35,9 @@ def auth_db():
             password=os.environ['COVID_PASS'],
             source=os.environ['COVID_DB']
         )
-        collection = _db['Scraper_connect_biorxiv_org_fs.files']
+        collection = _db['Scraper_chemrxiv_org_fs.files']
 
-        fs = gridfs.GridFS(_db, collection='Scraper_connect_biorxiv_org_fs')
+        fs = gridfs.GridFS(_db, collection='Scraper_chemrxiv_org_fs')
 
         _collection = collection, fs
 
@@ -110,7 +110,7 @@ def process_documents(processes):
             #     data.seek(0)
             #     f.write(data.read())
             # with open('paragraphs.txt', 'w') as f:
-            #     f.write('\n'.join(paragraphs))
+            #     f.write('\n'.join([x['text'] for x in paragraphs]))
             # input()
 
 
