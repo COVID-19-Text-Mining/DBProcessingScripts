@@ -184,7 +184,7 @@ class Parser(ABC):
         pass
 
     @abstractmethod
-    def _parse_is_pre_proof(self, doc):
+    def _parse_is_preprint(self, doc):
         """ Returns a <class 'bool'> specifying whether the document is a preprint.
         If it's not immediately clear from the source it's coming from, return None."""
         pass
@@ -278,7 +278,7 @@ class Parser(ABC):
                 "has_year": self._parse_has_year(doc),
                 "has_month": self._parse_has_month(doc),
                 "has_day": self._parse_has_day(doc),
-                "is_pre_proof": self._parse_is_pre_proof(doc),
+                "is_preprint": self._parse_is_preprint(doc),
                 "is_covid19": self._parse_is_covid19(doc),
                 "license": self._parse_license(doc),
                 "pmcid": self._parse_pmcid(doc),
