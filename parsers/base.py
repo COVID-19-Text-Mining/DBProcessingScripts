@@ -41,6 +41,8 @@ class Parser(ABC):
         "pmcid",
         "pubmed_id",
         "who_covidence",
+        "version",
+        "copyright"
     ]
 
     @abstractmethod
@@ -225,7 +227,6 @@ class Parser(ABC):
         """ Returns the copyright notice of a document as a <class 'str'>."""
         pass
 
-
     def _preprocess(self, doc):
         """ Do any preprocessing you need in this method. doc=self._preprocess(doc)
         is called before the doc is parsed by the various _parse_<field> methods
@@ -284,6 +285,7 @@ class Parser(ABC):
                                      "pmcid": self._parse_pmcid(doc),
                                      "pubmed_id": self._parse_pubmed_id(doc),
                                      "who_covidence": self._parse_who_covidence(doc),
-                                     "version": self._parse_version(doc)
+                                     "version": self._parse_version(doc),
+                                     "copyright": self._parse_copyright(doc)
                                  }
                                  )
