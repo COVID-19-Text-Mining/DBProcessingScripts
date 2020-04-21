@@ -201,11 +201,6 @@ class Parser(ABC):
         pass
 
     @abstractmethod
-    def _parse_cord_uid(self, doc):
-        """ Returns the cord_uid of a document as a <class 'str'> if it is available."""
-        pass
-
-    @abstractmethod
     def _parse_pmcid(self, doc):
         """ Returns the pmcid of a document as a <class 'str'>."""
         pass
@@ -286,7 +281,6 @@ class Parser(ABC):
                 "is_pre_proof": self._parse_is_pre_proof(doc),
                 "is_covid19": self._parse_is_covid19(doc),
                 "license": self._parse_license(doc),
-                "cord_uid": self._parse_cord_uid(doc),
                 "pmcid": self._parse_pmcid(doc),
                 "pubmed_id": self._parse_pubmed_id(doc),
                 "who_covidence": self._parse_who_covidence(doc),

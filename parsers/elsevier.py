@@ -3,7 +3,7 @@ import json
 import re
 from datetime import datetime
 import requests
-from parsers.utils import clean_title
+from parsers.utils import clean_title, find_cited_by, find_references
 
 
 class ElsevierParser(Parser):
@@ -110,32 +110,15 @@ class ElsevierParser(Parser):
         """ Returns the references of a document as a <class 'list'> of <class 'dict'>.
         This is a list of documents cited by the current document.
         """
-        references = []
         doi = self._parse_doi(doc)
-        if doi:
-            response = requests.get(f"https://opencitations.net/index/api/v1/references/{doi}").json()
-            if response:
-                references = [{"doi": r['cited'].replace("coci =>", "")} for r in response]
-
-        if references:
-            return references
-        else:
-            return None
+        return find_references(doi)
 
     def _parse_cited_by(self, doc):
         """ Returns the citations of a document as a <class 'list'> of <class 'str'>.
         A list of DOIs of documents that cite this document.
         """
-        citations = []
         doi = self._parse_doi(doc)
-        if doi:
-            response = requests.get(f"https://opencitations.net/index/api/v1/citations/{doi}").json()
-            if response:
-                citations = [{"doi": r['citing'].replace("coci =>", "")} for r in response]
-        if citations:
-            return citations
-        else:
-            return None
+        return find_cited_by(doi)
 
     def _parse_link(self, doc):
         """ Returns the url of a document as a <class 'str'>"""
@@ -175,10 +158,6 @@ class ElsevierParser(Parser):
     def _parse_license(self, doc):
         """ Returns the license of a document as a <class 'str'> if it is specified in the original doc."""
         return doc["coredata"].get('openaccessUserLicense', None)
-
-    def _parse_cord_uid(self, doc):
-        """ Returns the cord_uid of a document as a <class 'str'> if it is available."""
-        return None
 
     def _parse_pmcid(self, doc):
         """ Returns the pmcid of a document as a <class 'str'>."""
