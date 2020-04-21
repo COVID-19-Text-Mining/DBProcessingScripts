@@ -227,4 +227,5 @@ class ElsevierParser(Parser):
         # Apparently the builder needs this to be happy.
         parsed_doc['mtime'] = doc.get('mtime', None)
         parsed_doc['scopus_eid'] = doc["coredata"].get("eid", None)
+        parsed_doc["_id"] = doc["_id"]
         return parsed_doc

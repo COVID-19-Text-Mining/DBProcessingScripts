@@ -242,7 +242,6 @@ class Parser(ABC):
         Post-process an entry to add any last-minute fields required. Use this only when absolutely necessary.
 
         """
-
         return parsed_doc
 
     def parse(self, doc):
