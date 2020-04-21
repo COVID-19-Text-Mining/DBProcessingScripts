@@ -84,6 +84,9 @@ def parse_cord_doc(doc, collection_name):
 
             else:
                 parsed_doc['publication_date'] = None
+                parsed_doc['has_year'] = False
+                parsed_doc['has_month'] = False
+                parsed_doc['has_day'] = False
 
         elif isinstance(pd, list):
             if len(pd) == 2 and all([x is not None for x in pd]):
