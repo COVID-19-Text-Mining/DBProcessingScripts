@@ -72,9 +72,14 @@ LTLayoutContainer.group_textlines = group_textlines
 
 
 class TextHandler(TextConverter):
-    def __init__(self, rsrcmgr):
+    def __init__(self, rsrcmgr, laparams=None):
+        _laparams = {
+            'char_margin': 3.0,
+            'line_margin': 2.5
+        }
+        _laparams.update(laparams or {})
         super(TextHandler, self).__init__(
-            rsrcmgr, StringIO(), laparams=LAParams(char_margin=1.0, line_margin=2.5))
+            rsrcmgr, StringIO(), laparams=LAParams(**_laparams))
 
         self.pages = []
 
@@ -127,14 +132,14 @@ class TextHandler(TextConverter):
         return self.pages
 
 
-def extract_paragraphs_pdf(pdf_file, return_dicts=False, only_printable=True):
+def extract_paragraphs_pdf(pdf_file, return_dicts=False, only_printable=True, laparams=None):
     """
     pdf_file is a file-like object.
     This function will return lists of plain-text paragraphs."""
     parser = PDFParser(pdf_file)
     doc = PDFDocument(parser)
     rsrcmgr = PDFResourceManager()
-    device = TextHandler(rsrcmgr)
+    device = TextHandler(rsrcmgr, laparams=laparams)
     interpreter = PDFPageInterpreter(rsrcmgr, device)
     for page in PDFPage.create_pages(doc):
         interpreter.process_page(page)
@@ -149,7 +154,7 @@ def extract_paragraphs_pdf(pdf_file, return_dicts=False, only_printable=True):
     paragraphs = []
 
     printable = set(string.printable)
-    for i, page in enumerate(device.get_true_paragraphs()):
+    for page_num, page in enumerate(device.get_true_paragraphs()):
         for j, p in enumerate(sorted(page, key=paragraph_pos_rank)):
             text = p['text']
 
@@ -176,6 +181,7 @@ def extract_paragraphs_pdf(pdf_file, return_dicts=False, only_printable=True):
             if return_dicts:
                 paragraphs.append({
                     'text': text,
+                    'page_num': page_num,
                     'indention_level': indention_level,
                     'bbox': p['bbox']
                 })
