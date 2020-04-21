@@ -221,20 +221,20 @@ class Parser(ABC):
         pass
 
     @abstractmethod
-    def _preprocess(self, doc):
-        """ Do any preprocessing you need in this method. doc=self._preprocess(doc)
-        is called before the doc is parsed by the various _parse_<field> methods
-        are called to construct the parsed doc."""
-        pass
-
-    @abstractmethod
     def _parse_copyright(self, doc):
         """ Returns the copyright notice of a document as a <class 'str'>."""
         pass
 
+
+    def _preprocess(self, doc):
+        """ Do any preprocessing you need in this method. doc=self._preprocess(doc)
+        is called before the doc is parsed by the various _parse_<field> methods
+        are called to construct the parsed doc."""
+        return doc
+
     def _postprocess(self, doc, parsed_doc):
         """
-        Post-process an entry to add any last-minute fields required. Use this only when absolutely necessary.
+        Post-process an entry to add any last-minute fields required.
 
         """
         return parsed_doc
@@ -254,36 +254,36 @@ class Parser(ABC):
         """
         doc = self._preprocess(doc)
 
-        return self._postprocess( doc,
-            {
-                "doi": self._parse_doi(doc),
-                "title": self._parse_title(doc),
-                "authors": self._parse_authors(doc),
-                "journal": self._parse_journal(doc),
-                "journal_short": self._parse_journal_short(doc),
-                "issn": self._parse_issn(doc),
-                "publication_date": self._parse_publication_date(doc),
-                "abstract": self._parse_abstract(doc),
-                "origin": self._parse_origin(doc),
-                "source_display": self._parse_source_display(doc),
-                "last_updated": self._parse_last_updated(doc),
-                "body_text": self._parse_body_text(doc),
-                "has_full_text": self._parse_has_full_text(doc),
-                "references": self._parse_references(doc),
-                "cited_by": self._parse_cited_by(doc),
-                "link": self._parse_link(doc),
-                "category_human": self._parse_category_human(doc),
-                "keywords": self._parse_keywords(doc),
-                "summary_human": self._parse_summary_human(doc),
-                "has_year": self._parse_has_year(doc),
-                "has_month": self._parse_has_month(doc),
-                "has_day": self._parse_has_day(doc),
-                "is_preprint": self._parse_is_preprint(doc),
-                "is_covid19": self._parse_is_covid19(doc),
-                "license": self._parse_license(doc),
-                "pmcid": self._parse_pmcid(doc),
-                "pubmed_id": self._parse_pubmed_id(doc),
-                "who_covidence": self._parse_who_covidence(doc),
-                "version": self._parse_version(doc)
-            }
-        )
+        return self._postprocess(doc,
+                                 {
+                                     "doi": self._parse_doi(doc),
+                                     "title": self._parse_title(doc),
+                                     "authors": self._parse_authors(doc),
+                                     "journal": self._parse_journal(doc),
+                                     "journal_short": self._parse_journal_short(doc),
+                                     "issn": self._parse_issn(doc),
+                                     "publication_date": self._parse_publication_date(doc),
+                                     "abstract": self._parse_abstract(doc),
+                                     "origin": self._parse_origin(doc),
+                                     "source_display": self._parse_source_display(doc),
+                                     "last_updated": self._parse_last_updated(doc),
+                                     "body_text": self._parse_body_text(doc),
+                                     "has_full_text": self._parse_has_full_text(doc),
+                                     "references": self._parse_references(doc),
+                                     "cited_by": self._parse_cited_by(doc),
+                                     "link": self._parse_link(doc),
+                                     "category_human": self._parse_category_human(doc),
+                                     "keywords": self._parse_keywords(doc),
+                                     "summary_human": self._parse_summary_human(doc),
+                                     "has_year": self._parse_has_year(doc),
+                                     "has_month": self._parse_has_month(doc),
+                                     "has_day": self._parse_has_day(doc),
+                                     "is_preprint": self._parse_is_preprint(doc),
+                                     "is_covid19": self._parse_is_covid19(doc),
+                                     "license": self._parse_license(doc),
+                                     "pmcid": self._parse_pmcid(doc),
+                                     "pubmed_id": self._parse_pubmed_id(doc),
+                                     "who_covidence": self._parse_who_covidence(doc),
+                                     "version": self._parse_version(doc)
+                                 }
+                                 )
