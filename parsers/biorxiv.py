@@ -1,9 +1,7 @@
 from parsers.base import Parser
-import json
 import os
 import pymongo
 from datetime import datetime
-import requests
 from parsers.utils import clean_title, find_cited_by, find_references
 import gridfs
 import traceback
