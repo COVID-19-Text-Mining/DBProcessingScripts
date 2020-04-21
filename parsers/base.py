@@ -25,7 +25,7 @@ class Parser(ABC):
         "last_updated",
         "body_text",
         "has_full_text",
-        "citations",
+        "references",
         "cited_by",
         "link",
         "category_human",
