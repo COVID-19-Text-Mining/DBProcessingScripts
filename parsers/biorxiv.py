@@ -31,7 +31,7 @@ class BiorxivParser(Parser):
 
     def _parse_title(self, doc):
         """ Returns the title of a document as a <class 'str'>"""
-        title = doc.get("dc:title", '')
+        title = doc.get("Title", '')
         return clean_title(title)
 
     def _parse_authors(self, doc):
@@ -203,19 +203,6 @@ class BiorxivParser(Parser):
         """ Returns the copyright notice of a document as a <class 'str'>."""
         # TODO: Get this from the scraper
         None
-
-    def _preprocess(self, doc):
-        """
-        Preprocesses an entry from the Elsevier_corona_meta collection into a flattened
-        metadata document.
-
-        Args:
-            doc:
-
-        Returns:
-
-        """
-        return doc
 
     def _postprocess(self, doc, parsed_doc):
         """
