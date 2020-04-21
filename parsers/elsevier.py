@@ -176,10 +176,6 @@ class ElsevierParser(Parser):
         """ Returns the license of a document as a <class 'str'> if it is specified in the original doc."""
         return doc["coredata"].get('openaccessUserLicense', None)
 
-    def _parse_cord_uid(self, doc):
-        """ Returns the cord_uid of a document as a <class 'str'> if it is available."""
-        return None
-
     def _parse_pmcid(self, doc):
         """ Returns the pmcid of a document as a <class 'str'>."""
         return None
