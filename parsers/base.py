@@ -1,11 +1,120 @@
 from abc import ABC, abstractmethod
+from mongoengine import (
+    connect, Document, EmbeddedDocumentField,
+    StringField, ListField,
+    EmbeddedDocument, EmailField, ValidationError, DateTimeField, DynamicEmbeddedDocument, BooleanField)
+
+__all__ = [
+    'Author', 'ExtendedParagraph', 'Reference', 'VespaDocument',
+    'Parser'
+]
+
+class Author(EmbeddedDocument):
+    first_name = StringField(default=None)
+    middle_name = StringField(default=None)
+    last_name = StringField(default=None)
+    institution = StringField(default=None)
+    email = EmailField(default=None)
+
+    def validate(self, clean=True):
+        super(Author, self).validate(clean)
+
+        if all(map(
+                lambda x: x is None,
+                (self.first_name, self.middle_name, self.last_name))):
+            raise ValidationError('At least one name must be specified.')
+
+
+class ExtendedParagraph(DynamicEmbeddedDocument):
+    """A paragraph with a "text" and other meta info"""
+    text = StringField(required=True)
+    section_heading = StringField(default=None)
+
+
+class Reference(DynamicEmbeddedDocument):
+    """A reference with a "display" and other meta info"""
+    text = StringField(required=True)
+
+    # parsed data
+    doi = StringField(default=None)
+    authors = ListField(EmbeddedDocumentField(Author), default=lambda: [])
+    title = StringField(default=None)
+    journal = StringField(default=None)
+    page = StringField(default=None)
+
+
+class VespaDocument(Document):
+    doi = StringField(default=None)
+
+    title = StringField(default=None)
+    authors = ListField(EmbeddedDocumentField(Author))
+
+    journal = StringField(default=None)
+    journal_short = StringField(default=None)
+    publication_date = DateTimeField(required=True)
+    license = StringField(default=None)
+
+    abstract = StringField(default=None)
+
+    has_full_text = BooleanField(required=True)
+    body_text = ListField(EmbeddedDocumentField(ExtendedParagraph))
+    references = ListField(EmbeddedDocumentField(Reference))
+
+    cited_by = ListField(EmbeddedDocumentField(Reference))
+
+    source_display = StringField(required=True)
+    origin = StringField(required=True)
+    link = StringField(required=True)
+    last_updated = DateTimeField(required=True)
+    _bt = DateTimeField(required=True)
+
+    category_human = ListField(StringField(required=True), default=lambda: [])
+    keywords = ListField(StringField(required=True), default=lambda: [])
+    summary_human = ListField(StringField(required=True), default=lambda: [])
+    who_covidence = StringField(default=None)
+
+    has_year = BooleanField(required=True)
+    has_month = BooleanField(required=True)
+    has_day = BooleanField(required=True)
+    is_preprint = BooleanField(required=True)
+    is_covid19 = BooleanField(required=True)
+
+    cord_uid = StringField(default=None)
+    pmcid = StringField(default=None)
+    pubmed_id = StringField(default=None)
+
+    unparsed_doc_id = StringField(required=True)
+
+    indexes = [
+            'doi', '#doi',
+            'journal', '#journal', 'journal_short', '#journal_short',
+            'publication_date',
+            'has_full_text',
+            'origin',
+            'last_updated',
+            'has_year', 'has_month', 'has_day',
+            'is_preprint', 'is_covid19',
+            'cord_uid', 'pmcid', 'pubmed_id'
+        ]
+
+    meta = {"collection": "",
+        "indexes": indexes,
+        "allow_inheritance": True,
+        "abstract": True
+    }
+    @property
+    def base_collection(self):
+        raise NotImplementedError
+
+    @property
+    def parser(self):
+        raise NotImplementedError
 
 
 class Parser(ABC):
     """
     Base class for all COVIDScholar parsers. Please implement your parser against this API
     and inherit from this base class.
-
     Every parser should make its best effort to get a value for each of the following fields,
     either from the original document that is being parsed or by calling an external API that can
     supply that information. If data for a field doesn't exist for a paper (e.g. a PubMed ID
@@ -128,7 +237,6 @@ class Parser(ABC):
         {'section_heading':  <class 'str'>,
          'text': <class 'str'>
          }
-
          """
         pass
 
@@ -184,7 +292,7 @@ class Parser(ABC):
         pass
 
     @abstractmethod
-    def _parse_is_pre_proof(self, doc):
+    def _parse_is_preprint(self, doc):
         """ Returns a <class 'bool'> specifying whether the document is a preprint.
         If it's not immediately clear from the source it's coming from, return None."""
         pass
@@ -198,11 +306,6 @@ class Parser(ABC):
     @abstractmethod
     def _parse_license(self, doc):
         """ Returns the license of a document as a <class 'str'> if it is specified in the original doc."""
-        pass
-
-    @abstractmethod
-    def _parse_cord_uid(self, doc):
-        """ Returns the cord_uid of a document as a <class 'str'> if it is available."""
         pass
 
     @abstractmethod
@@ -226,21 +329,19 @@ class Parser(ABC):
         pass
 
     @abstractmethod
-    def _preprocess(self, doc):
-        """ Do any preprocessing you need in this method. doc=self._preprocess(doc)
-        is called before the doc is parsed by the various _parse_<field> methods
-        are called to construct the parsed doc."""
-        pass
-
-    @abstractmethod
     def _parse_copyright(self, doc):
         """ Returns the copyright notice of a document as a <class 'str'>."""
         pass
 
+    def _preprocess(self, doc):
+        """ Do any preprocessing you need in this method. doc=self._preprocess(doc)
+        is called before the doc is parsed by the various _parse_<field> methods
+        are called to construct the parsed doc."""
+        return doc
+
     def _postprocess(self, doc, parsed_doc):
         """
-        Post-process an entry to add any last-minute fields required. Use this only when absolutely necessary.
-
+        Post-process an entry to add any last-minute fields required.
         """
         return parsed_doc
 
@@ -248,18 +349,15 @@ class Parser(ABC):
         """
         Parses the input document into the standardized COVIDScholar entry format.
         Do not overwrite this method with your own 'parse' method!
-
         Args:
             doc: Whatever your input object is.
-
         Returns:
-
             (dict) Parsed entry.
-
         """
         doc = self._preprocess(doc)
 
-        return self._postprocess( doc,
+        return self._postprocess(
+            doc,
             {
                 "doi": self._parse_doi(doc),
                 "title": self._parse_title(doc),
@@ -283,10 +381,9 @@ class Parser(ABC):
                 "has_year": self._parse_has_year(doc),
                 "has_month": self._parse_has_month(doc),
                 "has_day": self._parse_has_day(doc),
-                "is_pre_proof": self._parse_is_pre_proof(doc),
+                "is_preprint": self._parse_is_preprint(doc),
                 "is_covid19": self._parse_is_covid19(doc),
                 "license": self._parse_license(doc),
-                "cord_uid": self._parse_cord_uid(doc),
                 "pmcid": self._parse_pmcid(doc),
                 "pubmed_id": self._parse_pubmed_id(doc),
                 "who_covidence": self._parse_who_covidence(doc),

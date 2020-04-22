@@ -1,9 +1,31 @@
-from parsers.base import Parser
+from base import Parser
 import json
 import re
 from datetime import datetime
 import requests
-from parsers.utils import clean_title
+from utils import clean_title
+from base import VespaDocument
+from mongoengine import DynamicDocument, ReferenceField, DateTimeField
+
+class ElsevierDocument(VespaDocument):
+    indexes = [
+        'doi', '#doi',
+        'journal', '#journal', 'journal_short', '#journal_short',
+        'publication_date',
+        'has_full_text',
+        'origin',
+        'last_updated',
+        'has_year', 'has_month', 'has_day',
+        'is_preprint', 'is_covid19',
+        'cord_uid', 'pmcid', 'pubmed_id'
+    ]
+
+    meta = {"collection": "Elsevier_parsed_vespa",
+            "indexes": indexes
+    }
+
+    unparsed_document = ReferenceField('UnparsedElsevierDocument', required=True)
+
 
 
 class ElsevierParser(Parser):
@@ -162,7 +184,7 @@ class ElsevierParser(Parser):
         """ Returns the human-written summary of a document as a <class 'list'> of <class 'str'>"""
         return None
 
-    def _parse_is_pre_proof(self, doc):
+    def _parse_is_preprint(self, doc):
         """ Returns a <class 'bool'> specifying whether the document is a preprint.
         If it's not immediately clear from the source it's coming from, return None."""
         return False
@@ -229,3 +251,15 @@ class ElsevierParser(Parser):
         parsed_doc['scopus_eid'] = doc["coredata"].get("eid", None)
         parsed_doc["_id"] = doc["_id"]
         return parsed_doc
+
+class UnparsedElsevierDocument(DynamicDocument):
+    meta = {"collection": "Elsevier_corona_meta"
+    }
+
+    parser = ElsevierParser()
+
+    parsed_class = ElsevierDocument
+
+    parsed_document = ReferenceField(ElsevierDocument, required=False)
+
+    last_updated = DateTimeField(db_field="mtime")
