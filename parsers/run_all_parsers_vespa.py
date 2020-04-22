@@ -24,6 +24,7 @@ for collection in unparsed_collection_list:
         if parsed_document is None or document.last_updated > parsed_document._bt:
             print(document)
             parsed_document = document.parse()
-            parsed_document._bt = datetime.now()
+            document.parsed_document = parsed_document
             print(parsed_document)
             parsed_document.save()
+            document.save()
