@@ -53,7 +53,7 @@ class GoogleSubmissionParser(Parser):
     def _parse_publication_date(self, doc):
         """ Returns the publication_date of a document as a <class 'datetime.datetime'>"""
         if 'publication_date' in doc.keys():
-            return datetime.datetime.strftime(doc['publication_date'], '%Y-%m-%d')
+            return doc['publication_date']
         return None
 
     def _parse_has_year(self, doc):
@@ -90,7 +90,7 @@ class GoogleSubmissionParser(Parser):
     def _parse_last_updated(self, doc):
         """ Returns when the entry was last_updated as a <class 'datetime.datetime'>. Note
         this should probably not be the _bt field in a Parser."""
-        return datetime.datetime.strftime(datetime.datetime.now(), '%Y-%m-%d')
+        return datetime.datetime.now(), '%Y-%m-%d'
 
     def _parse_has_full_text(self, doc):
         """ Returns a <class 'bool'> specifying if we have the full text."""
