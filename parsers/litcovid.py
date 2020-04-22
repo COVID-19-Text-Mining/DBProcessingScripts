@@ -1,11 +1,49 @@
-from base import Parser
+from base import Parser, VespaDocument
 import json
 import datetime
 import requests
 from utils import clean_title, find_cited_by, find_references, find_pmcid_and_pubmed_id
 from pprint import PrettyPrinter
 import xml.etree.ElementTree as ET
+from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 
+class LitCovidCrossrefDocument(VespaDocument):
+    indexes = [
+        'doi',
+        'journal', 'journal_short',
+        'publication_date',
+        'has_full_text',
+        'origin',
+        'last_updated',
+        'has_year', 'has_month', 'has_day',
+        'is_preprint', 'is_covid19',
+        'cord_uid', 'pmcid', 'pubmed_id'
+    ]
+
+    meta = {"collection": "Litcovid_crossref_parsed_vespa",
+            "indexes": indexes
+    }
+
+    unparsed_document = ReferenceField('UnparsedLitCovidCrossrefDocument', required=True)
+
+class LitCovidPubmedDocument(VespaDocument):
+    indexes = [
+        'doi',
+        'journal', 'journal_short',
+        'publication_date',
+        'has_full_text',
+        'origin',
+        'last_updated',
+        'has_year', 'has_month', 'has_day',
+        'is_preprint', 'is_covid19',
+        'cord_uid', 'pmcid', 'pubmed_id'
+    ]
+
+    meta = {"collection": "LitCovid_pubmed_xml_parsed_vespa",
+            "indexes": indexes
+    }
+
+    unparsed_document = ReferenceField('UnparsedLitCovidPubmedXMLDocument', required=True)
 
 class LitCovidParser(Parser):
     """
@@ -316,3 +354,41 @@ class LitCovidParser(Parser):
         returned. Return parsed_doc if you don't want to make any changes.
         """
         return parsed_doc
+
+class UnparsedLitCovidCrossrefDocument(DynamicDocument):
+    meta = {"collection": "LitCovidCrossref"
+    }
+
+    parser = LitCovidParser()
+
+    parsed_class = LitCovidCrossrefDocument
+
+    parsed_document = ReferenceField(LitCovidCrossrefDocument, required=False)
+
+    last_updated = DateTimeField(db_field="last_updated")
+
+    def parse(self):
+        parsed_document = self.parser.parse(json.loads(self.to_json()))
+        parsed_document['_bt'] = datetime.now()
+        parsed_document['unparsed_document'] = self
+        return LitCovidCrossrefDocument(**parsed_document)
+
+
+class UnparsedLitCovidPubmedXMLDocument(DynamicDocument):
+    meta = {"collection": "LitCovid_pubmed_xml"
+    }
+
+    parser = LitCovidParser()
+
+    parsed_class = LitCovidPubmedDocument
+
+    parsed_document = ReferenceField(LitCovidPubmedDocument, required=False)
+
+    last_updated = DateTimeField(db_field="last_updated")
+
+    def parse(self):
+        parsed_document = self.parser.parse(json.loads(self.to_json()))
+        parsed_document['_bt'] = datetime.now()
+        parsed_document['unparsed_document'] = self
+        return LitCovidPubmedDocument(**parsed_document)
+

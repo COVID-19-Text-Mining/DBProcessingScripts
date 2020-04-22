@@ -1,9 +1,29 @@
-from base import Parser
+from base import Parser, VespaDocument
 import json
-import datetime
+from datetime import datetime
 import requests
 from utils import clean_title, find_cited_by, find_references, find_pmcid_and_pubmed_id
 from pprint import PrettyPrinter
+from mongoengine import DynamicDocument, ReferenceField, DateTimeField
+
+class GoogleFormSubmissionDocument(VespaDocument):
+    indexes = [
+        'doi',
+        'journal', 'journal_short',
+        'publication_date',
+        'has_full_text',
+        'origin',
+        'last_updated',
+        'has_year', 'has_month', 'has_day',
+        'is_preprint', 'is_covid19',
+        'cord_uid', 'pmcid', 'pubmed_id'
+    ]
+
+    meta = {"collection": "google_form_submissions_parsed_vespa",
+            "indexes": indexes
+    }
+
+    unparsed_document = ReferenceField('UnparsedGoogleFormSubmissionDocument', required=True)
 
 class GoogleSubmissionParser(Parser):
     """
@@ -28,7 +48,13 @@ class GoogleSubmissionParser(Parser):
         full name (e.g. John Smith or J. Smith) as a <class 'str'>.
         """
         if doc['authors']:
-            return doc['authors']
+            authors = []
+            for a in doc['authors']:
+                author = {"name": a['name']}
+                if a['affiliation'] != []:
+                    author['institution'] = a['affiliation'][0]['name']
+                authors.append(author)
+            return authors
         return None
 
     def _parse_journal(self, doc):
@@ -40,14 +66,21 @@ class GoogleSubmissionParser(Parser):
     def _parse_issn(self, doc):
         """ Returns the ISSN and (or) EISSN of a document as a <class 'list'> of <class 'str'> """
         if 'crossref_raw_result in doc.keys()' and 'ISSN' in doc['crossref_raw_result']['message'].keys():
-            return doc['crossref_raw_result']['message']['ISSN']
+            return doc['crossref_raw_result']['message']['ISSN'][0]
         return None
 
     def _parse_journal_short(self, doc):
         """ Returns the shortend journal name of a document as a <class 'str'>, if available.
          e.g. 'Comp. Mat. Sci.' """
         if 'crossref_raw_result' in doc.keys() and 'short-container-title' in doc['crossref_raw_result']['message'].keys():
-            return doc['crossref_raw_result']['message']['short-container-title']
+            short_title = doc['crossref_raw_result']['message']['short-container-title']
+            if isinstance(short_title, list):
+                if len(short_title) > 0:
+                    return short_title[0]
+                else:
+                    return None
+            else:
+                return short_title
         return None
 
     def _parse_publication_date(self, doc):
@@ -58,15 +91,15 @@ class GoogleSubmissionParser(Parser):
 
     def _parse_has_year(self, doc):
         """ Returns a <class 'bool'> specifying whether a document's year can be trusted."""
-        return 'publication_date' in doc.keys() and len(datetime.datetime.strftime(doc['publication_date'], '%Y-%m-%d')) >= 4
+        return 'publication_date' in doc.keys() and len(datetime.strftime(doc['publication_date'], '%Y-%m-%d')) >= 4
 
     def _parse_has_month(self, doc):
         """ Returns a <class 'bool'> specifying whether a document's month can be trusted."""
-        return 'publication_date' in doc.keys() and len(datetime.datetime.strftime(doc['publication_date'], '%Y-%m-%d')) >= 7
+        return 'publication_date' in doc.keys() and len(datetime.strftime(doc['publication_date'], '%Y-%m-%d')) >= 7
 
     def _parse_has_day(self, doc):
         """ Returns a <class 'bool'> specifying whether a document's day can be trusted."""
-        return 'publication_date' in doc.keys() and len(datetime.datetime.strftime(doc['publication_date'], '%Y-%m-%d')) == 10
+        return 'publication_date' in doc.keys() and len(datetime.strftime(doc['publication_date'], '%Y-%m-%d')) == 10
 
     def _parse_abstract(self, doc):
         """ Returns the abstract of a document as a <class 'str'>"""
@@ -90,11 +123,11 @@ class GoogleSubmissionParser(Parser):
     def _parse_last_updated(self, doc):
         """ Returns when the entry was last_updated as a <class 'datetime.datetime'>. Note
         this should probably not be the _bt field in a Parser."""
-        return datetime.datetime.now(), '%Y-%m-%d'
+        return datetime.now()
 
     def _parse_has_full_text(self, doc):
         """ Returns a <class 'bool'> specifying if we have the full text."""
-        pass
+        return False
 
     def _parse_body_text(self, doc):
         """ Returns the body_text of a document as a <class 'list'> of <class 'dict'>.
@@ -193,3 +226,21 @@ class GoogleSubmissionParser(Parser):
         returned. Return parsed_doc if you don't want to make any changes.
         """
         return parsed_doc
+
+class UnparsedGoogleFormSubmissionDocument(DynamicDocument):
+    meta = {"collection": "google_form_submissions"
+    }
+
+    parser = GoogleSubmissionParser()
+
+    parsed_class = GoogleFormSubmissionDocument
+
+    parsed_document = ReferenceField(GoogleFormSubmissionDocument, required=False)
+
+    last_updated = DateTimeField(db_field="last_updated")
+
+    def parse(self):
+        parsed_document = self.parser.parse(self.to_mongo())
+        parsed_document['_bt'] = datetime.now()
+        parsed_document['unparsed_document'] = self
+        return GoogleFormSubmissionDocument(**parsed_document)
