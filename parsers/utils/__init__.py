@@ -3,6 +3,8 @@ import xml.etree.ElementTree as ET
 
 
 def clean_title(title):
+    if not title:
+        return title
     title = title.split("Running Title")[0]
     title = title.replace("^Running Title: ", "")
     title = title.replace("^Short Title: ", "")
@@ -10,6 +12,13 @@ def clean_title(title):
     title = title.strip()
     return title
 
+def clean_abstract(abstract):
+    if not abstract:
+        return abstract
+
+    if 'a b s t r a c t' in abstract:
+        abstract = abstract.split('a b s t r a c t')[1]
+    return abstract
 
 def find_references(doi):
     """ Returns the references of a document as a <class 'list'> of <class 'dict'>.
