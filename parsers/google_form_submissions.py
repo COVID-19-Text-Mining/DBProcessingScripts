@@ -90,7 +90,7 @@ class GoogleSubmissionParser(Parser):
     def _parse_last_updated(self, doc):
         """ Returns when the entry was last_updated as a <class 'datetime.datetime'>. Note
         this should probably not be the _bt field in a Parser."""
-        return datetime.datetime.now(), '%Y-%m-%d'
+        return datetime.datetime.now()
 
     def _parse_has_full_text(self, doc):
         """ Returns a <class 'bool'> specifying if we have the full text."""
@@ -142,7 +142,7 @@ class GoogleSubmissionParser(Parser):
     def _parse_is_preprint(self, doc):
         """ Returns a <class 'bool'> specifying whether the document is a preprint.
         If it's not immediately clear from the source it's coming from, return None."""
-        return False
+        return None
 
     def _parse_is_covid19(self, doc):
         """ Returns a <class 'bool'> if we know for sure a document is specifically about COVID-19.
