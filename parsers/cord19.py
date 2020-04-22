@@ -327,17 +327,17 @@ class CORD19Parser(Parser):
     def _parse_pmcid(self, doc):
         """ Returns the pmcid of a document as a <class 'str'>."""
         pmcid = doc.get("csv_raw_result", {}).get("pmcid", None)
-        return pmcid if pmcid is not "" else None
+        return pmcid if pmcid != "" else None
 
     def _parse_pubmed_id(self, doc):
         """ Returns the PubMed ID of a document as a <class 'str'>."""
         pubmed_id = doc.get("csv_raw_result", {}).get("pubmed_id", None)
-        return pubmed_id if pubmed_id is not "" else None
+        return pubmed_id if pubmed_id != "" else None
 
     def _parse_who_covidence(self, doc):
         """ Returns the who_covidence of a document as a <class 'str'>."""
         who = doc.get("csv_raw_result", {}).get("WHO #Covidence", None)
-        return who if who is not "" else None
+        return who if who != "" else None
 
     def _parse_version(self, doc):
         """ Returns the version of a document as a <class 'int'>."""
