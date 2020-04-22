@@ -1,6 +1,6 @@
 from base import Parser, VespaDocument
+from datetime import datetime
 import json
-import datetime
 import requests
 from utils import clean_title, find_cited_by, find_references, find_pmcid_and_pubmed_id
 from pprint import PrettyPrinter
@@ -92,7 +92,7 @@ class LitCovidParser(Parser):
                                 first = author.find('ForeName').text
                                 last = author.find('LastName').text
                                 name = first + last
-                                author_info['Name'] = u'{0} {1}'.format(first, last)
+                                author_info['name'] = u'{0} {1}'.format(first, last)
                                 authors_list.append(author_info)
                     return authors_list
         elif type(doc) == dict:
@@ -151,31 +151,31 @@ class LitCovidParser(Parser):
                         month = list(calendar.month_abbr).index(month)
                     year = ArticleDate.find('Year').text
                     datestring = "{0}-{1}-{2}".format(year, month, day)
-                    return datetime.datetime.strptime(datestring, '%Y-%m-%d')
+                    return datetime.strptime(datestring, '%Y-%m-%d')
                 elif ArticleDate.find('Month') != None:
                     month = ArticleDate.find('Month').text
                     if len(month) == 3:
                         month = list(calendar.month_abbr).index(month)
                     year = ArticleDate.find('Year').text
                     datestring = "{0}, {1}".format(year, month)
-                    return datetime.datetime.strptime(datestring, '%Y-%m')
+                    return datetime.strptime(datestring, '%Y-%m')
                 elif ArticleDate.find('Year') != None:
                     year = ArticleDate.find('Year').text
                     datestring = "{0}".format(year)
-                    return datetime.datetime.strptime(datestring, '%Y')
+                    return datetime.strptime(datestring, '%Y')
         elif type(doc) == dict:
             formatted_date = ""
             date = doc['issued']['date-parts']
             if len(date[0]) == 1 and date[0] != None:
                 datestring = "{0}".format(date[0][0])
-                return datetime.datetime.strptime(datestring, '%Y')
+                return datetime.strptime(datestring, '%Y')
             elif len(date[0]) == 2:
                 datestring = "{0}-{1}".format(date[0][0], date[0][1])
-                return datetime.datetime.strptime(datestring, '%Y-%m')
+                return datetime.strptime(datestring, '%Y-%m')
             else:
                 datestring = "{0}-{1}-{2}".format(date[0][0], date[0][1], date[0][2])
-                return datetime.datetime.strptime(datestring, '%Y-%m-%d')
-        return None
+                return datetime.strptime(datestring, '%Y-%m-%d')
+        return datetime(year=1,month=1,day=1)
 
     def _parse_has_year(self, doc):
         """ Returns a <class 'bool'> specifying whether a document's year can be trusted."""
@@ -185,7 +185,7 @@ class LitCovidParser(Parser):
             return article.find('ArticleDate') and article.find('ArticleDate').find('Year').text
         elif type(doc) == dict:
             return 'date-parts' in doc['issued'] and len(doc['issued']['date-parts'][0]) >= 1
-        return None
+        return False
 
     def _parse_has_month(self, doc):
         """ Returns a <class 'bool'> specifying whether a document's month can be trusted."""
@@ -195,7 +195,7 @@ class LitCovidParser(Parser):
             return article.find('ArticleDate') and article.find('ArticleDate').find('Month').text
         elif type(doc) == dict:
             return 'date-parts' in doc['issued'] and len(doc['issued']['date-parts'][0]) >= 2
-        return None
+        return False
 
     def _parse_has_day(self, doc):
         """ Returns a <class 'bool'> specifying whether a document's day can be trusted."""
@@ -205,7 +205,7 @@ class LitCovidParser(Parser):
             return article.find('ArticleDate') and article.find('ArticleDate').find('Day').text
         elif type(doc) == dict:
             return 'date-parts' in doc['issued'] and len(doc['issued']['date-parts'][0]) == 3
-        return None
+        return False
 
     def _parse_abstract(self, doc):
         """ Returns the abstract of a document as a <class 'str'>"""
@@ -247,11 +247,11 @@ class LitCovidParser(Parser):
     def _parse_last_updated(self, doc):
         """ Returns when the entry was last_updated as a <class 'datetime.datetime'>. Note
         this should probably not be the _bt field in a Parser."""
-        return datetime.datetime.now()
+        return datetime.now()
 
     def _parse_has_full_text(self, doc):
         """ Returns a <class 'bool'> specifying if we have the full text."""
-        pass
+        return False
 
     def _parse_body_text(self, doc):
         """ Returns the body_text of a document as a <class 'list'> of <class 'dict'>.

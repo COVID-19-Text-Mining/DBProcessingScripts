@@ -1,12 +1,12 @@
-from parsers.base import Parser, VespaDocument
+from base import Parser, VespaDocument
 import os
 import pymongo
 from datetime import datetime
-from parsers.utils import clean_title, find_cited_by, find_references
+from utils import clean_title, find_cited_by, find_references
 import gridfs
 import traceback
 from io import BytesIO
-from parsers.pdf_extractor.paragraphs import extract_paragraphs_pdf
+from pdf_extractor.paragraphs import extract_paragraphs_pdf
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 
 class BiorxivDocument(VespaDocument):
