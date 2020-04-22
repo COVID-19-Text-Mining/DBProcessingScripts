@@ -340,6 +340,10 @@ class Parser(ABC):
         """ Returns the copyright notice of a document as a <class 'str'>."""
         pass
 
+    def _parse_cord_uid(self, doc):
+        """ Returns the CORD UID of a document as a <class 'str'>."""
+        return None
+
     def _preprocess(self, doc):
         """ Do any preprocessing you need in this method. doc=self._preprocess(doc)
         is called before the doc is parsed by the various _parse_<field> methods
