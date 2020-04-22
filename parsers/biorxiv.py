@@ -1,13 +1,32 @@
-from parsers.base import Parser
+from base import Parser, VespaDocument
 import os
 import pymongo
 from datetime import datetime
-from parsers.utils import clean_title, find_cited_by, find_references
+from utils import clean_title, find_cited_by, find_references
 import gridfs
 import traceback
 from io import BytesIO
-from parsers.pdf_extractor.paragraphs import extract_paragraphs_pdf
+from pdf_extractor.paragraphs import extract_paragraphs_pdf
+from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 
+class BiorxivDocument(VespaDocument):
+    indexes = [
+        'doi',
+        'journal', 'journal_short',
+        'publication_date',
+        'has_full_text',
+        'origin',
+        'last_updated',
+        'has_year', 'has_month', 'has_day',
+        'is_preprint', 'is_covid19',
+        'cord_uid', 'pmcid', 'pubmed_id'
+    ]
+
+    meta = {"collection": "biorxiv_parsed_vespa",
+            "indexes": indexes
+    }
+
+    unparsed_document = ReferenceField('UnparsedBiorxivDocument', required=True)
 
 class BiorxivParser(Parser):
 
@@ -211,3 +230,21 @@ class BiorxivParser(Parser):
         # Apparently the builder needs this to be happy.
         parsed_doc['PDF_gridfs_id'] = doc.get('PDF_gridfs_id', None)
         return parsed_doc
+
+class UnparsedBiorxivDocument(DynamicDocument):
+    meta = {"collection": "Scraper_connect_biorxiv_org"
+    }
+
+    parser = BiorxivParser()
+
+    parsed_class = BiorxivDocument
+
+    parsed_document = ReferenceField(BiorxivDocument, required=False)
+
+    last_updated = DateTimeField(db_field="last_updated")
+
+    def parse(self):
+        parsed_document = self.parser.parse(self.to_mongo())
+        parsed_document['_bt'] = datetime.now()
+        parsed_document['unparsed_document'] = self
+        return BiorxivDocument(**parsed_document)
