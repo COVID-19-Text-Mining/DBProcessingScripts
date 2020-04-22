@@ -1,5 +1,6 @@
 from mongoengine import connect
 from elsevier import UnparsedElsevierDocument
+from datetime import datetime
 import os
 import json
 
@@ -23,4 +24,5 @@ for collection in unparsed_collection_list:
         if parsed_document is None or document.last_updated > parsed_document.last_updated:
             parsed_document = document.parser.parse(json.loads(document.to_json()))
             parsed_document = document.parsed_class(**parsed_document)
+            parsed_document._bt = datetime.now()
             parsed_document.save()
