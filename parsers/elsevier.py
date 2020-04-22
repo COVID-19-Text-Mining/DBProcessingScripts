@@ -242,7 +242,7 @@ class UnparsedElsevierDocument(DynamicDocument):
     last_updated = DateTimeField(db_field="mtime")
 
     def parse(self):
-        parsed_document = self.parser.parse(json.loads(self.to_json()))
+        parsed_document = self.parser.parse(self.to_mongo())
         parsed_document['_bt'] = datetime.now()
         parsed_document['unparsed_document'] = self
         del(parsed_document['mtime'])

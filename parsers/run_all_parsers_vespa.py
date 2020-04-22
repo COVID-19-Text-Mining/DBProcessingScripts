@@ -1,5 +1,8 @@
 from mongoengine import connect
 from elsevier import UnparsedElsevierDocument
+from google_form_submissions import UnparsedGoogleFormSubmissionDocument
+from litcovid import UnparsedLitCovidCrossrefDocument, UnparsedLitCovidPubmedXMLDocument
+from biorxiv import UnparsedBiorxivDocument
 from datetime import datetime
 import os
 import json
@@ -15,7 +18,7 @@ def init_mongoengine():
 
 init_mongoengine()
 
-unparsed_collection_list = [UnparsedElsevierDocument]
+unparsed_collection_list = [UnparsedLitCovidCrossrefDocument, UnparsedLitCovidPubmedXMLDocument, UnparsedBiorxivDocument, UnparsedGoogleFormSubmissionDocument, UnparsedElsevierDocument]
 
 for collection in unparsed_collection_list:
     for document in collection.objects:
