@@ -175,7 +175,7 @@ class GoogleSubmissionParser(Parser):
     def _parse_is_preprint(self, doc):
         """ Returns a <class 'bool'> specifying whether the document is a preprint.
         If it's not immediately clear from the source it's coming from, return None."""
-        return False
+        return None
 
     def _parse_is_covid19(self, doc):
         """ Returns a <class 'bool'> if we know for sure a document is specifically about COVID-19.
