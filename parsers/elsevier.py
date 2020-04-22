@@ -1,9 +1,9 @@
-from parsers.base import Parser, VespaDocument
+from base import Parser, VespaDocument
 import json
 import re
 from datetime import datetime
 import requests
-from parsers.utils import clean_title, find_cited_by, find_references
+from utils import clean_title, find_cited_by, find_references
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 
 class ElsevierDocument(VespaDocument):
@@ -225,7 +225,6 @@ class ElsevierParser(Parser):
         # Apparently the builder needs this to be happy.
         parsed_doc['mtime'] = doc.get('mtime', None)
         parsed_doc['scopus_eid'] = doc["coredata"].get("eid", None)
-        parsed_doc["_id"] = doc["_id"]
         return parsed_doc
 
 class UnparsedElsevierDocument(DynamicDocument):
@@ -239,3 +238,7 @@ class UnparsedElsevierDocument(DynamicDocument):
     parsed_document = ReferenceField(ElsevierDocument, required=False)
 
     last_updated = DateTimeField(db_field="mtime")
+
+    def parse(self):
+        parsed_document = self.parser.parse(json.loads(self.to_json()))
+        return ElsevierDocument(**parsed_document)

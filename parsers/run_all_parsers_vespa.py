@@ -21,8 +21,9 @@ for collection in unparsed_collection_list:
     for document in collection.objects:
         parsed_document = document.parsed_document
 
-        if parsed_document is None or document.last_updated > parsed_document.last_updated:
-            parsed_document = document.parser.parse(json.loads(document.to_json()))
-            parsed_document = document.parsed_class(**parsed_document)
+        if parsed_document is None or document.last_updated > parsed_document._bt:
+            print(document)
+            parsed_document = document.parse()
             parsed_document._bt = datetime.now()
+            print(parsed_document)
             parsed_document.save()
