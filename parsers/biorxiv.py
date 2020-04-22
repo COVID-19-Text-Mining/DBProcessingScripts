@@ -1,67 +1,59 @@
-from parsers.base import Parser, VespaDocument
-import json
-import re
+from parsers.base import Parser
+import os
+import pymongo
 from datetime import datetime
-import requests
 from parsers.utils import clean_title, find_cited_by, find_references
-from mongoengine import DynamicDocument, ReferenceField, DateTimeField
+import gridfs
+import traceback
+from io import BytesIO
+from parsers.pdf_extractor.paragraphs import extract_paragraphs_pdf
 
-class ElsevierDocument(VespaDocument):
-    indexes = [
-        'doi', '#doi',
-        'journal', '#journal', 'journal_short', '#journal_short',
-        'publication_date',
-        'has_full_text',
-        'origin',
-        'last_updated',
-        'has_year', 'has_month', 'has_day',
-        'is_preprint', 'is_covid19',
-        'cord_uid', 'pmcid', 'pubmed_id'
-    ]
 
-    meta = {"collection": "Elsevier_parsed_vespa",
-            "indexes": indexes
-    }
+class BiorxivParser(Parser):
 
-    unparsed_document = ReferenceField('UnparsedElsevierDocument', required=True)
+    def __init__(self, parse_full_text=False):
+        """
+        Parser for documents scraped from the BioRxiv/medRxiv preprint servers.
+        """
 
-class ElsevierParser(Parser):
-    """
-    Parser for documents from the Elsevier Novel Coronavirus Information Center.
-    """
+        self.parse_full_text = parse_full_text
+
+        client = pymongo.MongoClient(os.getenv("COVID_HOST"), username=os.getenv("COVID_USER"),
+                                     password=os.getenv("COVID_PASS"), authSource=os.getenv("COVID_DB"))
+
+        self.db = client[os.getenv("COVID_DB")]
 
     def _parse_doi(self, doc):
         """ Returns the DOI of a document as a <class 'str'>"""
-        return doc["coredata"].get('prism:doi', None)
+        return doc.get('Doi', None)
 
     def _parse_title(self, doc):
         """ Returns the title of a document as a <class 'str'>"""
-        title = doc["coredata"].get("dc:title", '')
+        title = doc.get("Title", '')
         return clean_title(title)
 
-    def _parse_authors(self, metadata):
+    def _parse_authors(self, doc):
         """ Returns the authors of a document as a <class 'list'> of <class 'dict'>.
         Each element in the authors list should have a "name" field with the author's
         full name (e.g. John Smith or J. Smith) as a <class 'str'>.
         """
-        authors = metadata["coredata"].get("authors", [])
-        if not authors:
-            authors = metadata["coredata"].get("dc:creator", [])
-        authors_parsed = []
-        for i in authors:
-            name = i['$']
-            if ',' in name:
-                name = ' '.join(map(lambda x: x.strip(), reversed(name.split(','))))
-            authors_parsed.append({'name': name})
-        return authors_parsed
+        author_list = doc.get("Authors", [])
+        authors = []
+        for a in author_list:
+            author = {}
+            author['name'] = a['Name']['fn'] + " " + a['Name']['ln']
+            author['first'] = a['Name']['fn']
+            author['last'] = a['Name']['ln']
+            authors.append(author)
+        return authors
 
     def _parse_journal(self, doc):
         """ Returns the journal of a document as a <class 'str'>. """
-        return doc["coredata"].get('prism:publicationName', None)
+        return doc.get('Journal', None)
 
     def _parse_issn(self, doc):
         """ Returns the ISSN and (or) EISSN of a document as a <class 'list'> of <class 'str'> """
-        return doc["coredata"].get('prism:issn')
+        return None
 
     def _parse_journal_short(self, doc):
         """ Returns the shortend journal name of a document as a <class 'str'>, if available.
@@ -70,40 +62,34 @@ class ElsevierParser(Parser):
 
     def _parse_publication_date(self, doc):
         """ Returns the publication_date of a document as a <class 'datetime.datetime'>"""
-        if "prism:coverDate" in doc["coredata"] and doc["coredata"]["prism:coverDate"]:
-            return datetime.strptime(doc["coredata"].get("prism:coverDate"), '%Y-%m-%d')
-        return None
+        return doc.get("Publication_Date", None)
 
     def _parse_has_year(self, doc):
         """ Returns a <class 'bool'> specifying whether a document's year can be trusted."""
-        return "prism:coverDate" in doc and doc["prism:coverDate"]
+        return True
 
     def _parse_has_month(self, doc):
         """ Returns a <class 'bool'> specifying whether a document's month can be trusted."""
-        return "prism:coverDate" in doc and doc["prism:coverDate"]
+        return True
 
     def _parse_has_day(self, doc):
         """ Returns a <class 'bool'> specifying whether a document's day can be trusted."""
-        return "prism:coverDate" in doc and doc["prism:coverDate"]
+        return True
 
     def _parse_abstract(self, doc):
         """ Returns the abstract of a document as a <class 'str'>"""
-        abstract = doc["coredata"].get("dc:description", '')
-        abstract = abstract or ''
-        abstract = re.sub(r'\s+', ' ', abstract).strip()
-        abstract = re.sub(r'^abstract\s+', '', abstract, flags=re.IGNORECASE)
-        return abstract
+        return ' '.join(doc.get('Abstract', []))
 
     def _parse_origin(self, doc):
         """ Returns the origin of the document as a <class 'str'>. Use the mongodb collection
         name for this."""
-        return "Scraper_Elsevier_corona"
+        return "Scraper_connect_biorxiv_org"
 
     def _parse_source_display(self, doc):
         """ Returns the source of the document as a <class 'str'>. This is what will be
         displayed on the website, so use something people will recognize properly and
         use proper capitalization."""
-        return 'Elsevier'
+        return doc['Journal']
 
     def _parse_last_updated(self, doc):
         """ Returns when the entry was last_updated as a <class 'datetime.datetime'>. Note
@@ -112,7 +98,7 @@ class ElsevierParser(Parser):
 
     def _parse_has_full_text(self, doc):
         """ Returns a <class 'bool'> specifying if we have the full text."""
-        pass
+        return True
 
     def _parse_body_text(self, doc):
         """ Returns the body_text of a document as a <class 'list'> of <class 'dict'>.
@@ -122,14 +108,34 @@ class ElsevierParser(Parser):
          }
 
          """
-        # TODO: Implement this function
-        return None
+        body_text = None
+
+        if self.parse_full_text:
+            paper_fs = gridfs.GridFS(self.db, collection='Scraper_connect_biorxiv_org_fs')
+            pdf_file = paper_fs.get(doc['PDF_gridfs_id'])
+
+            try:
+                paragraphs = extract_paragraphs_pdf(BytesIO(pdf_file.read()))
+            except Exception as e:
+                print('Failed to extract PDF %s(%r) (%r)' % (doc['Doi'], doc['PDF_gridfs_id'], e))
+                traceback.print_exc()
+                paragraphs = []
+
+            body_text = [{
+                'section_heading': None,
+                'text': x
+            } for x in paragraphs]
+
+            return body_text
+
+        return body_text
 
     def _parse_references(self, doc):
         """ Returns the references of a document as a <class 'list'> of <class 'dict'>.
         This is a list of documents cited by the current document.
         """
         doi = self._parse_doi(doc)
+        #TODO: Get these from the article rather than this API
         return find_references(doi)
 
     def _parse_cited_by(self, doc):
@@ -141,14 +147,9 @@ class ElsevierParser(Parser):
 
     def _parse_link(self, doc):
         """ Returns the url of a document as a <class 'str'>"""
-        link = doc["coredata"].get("link", [])
-        doi = doc["coredata"].get("prism:doi", [])
-
-        for i in link:
-            if i["@rel"] == "scidir":
-                url = i['@href']
-                break
-        if url is None:
+        url = doc.get("Link", None)
+        doi = doc.get("Doi", None)
+        if url is None and doi:
             url = 'https://doi.org/' + doi
         return url
 
@@ -167,16 +168,17 @@ class ElsevierParser(Parser):
     def _parse_is_preprint(self, doc):
         """ Returns a <class 'bool'> specifying whether the document is a preprint.
         If it's not immediately clear from the source it's coming from, return None."""
-        return False
+        return True
 
     def _parse_is_covid19(self, doc):
         """ Returns a <class 'bool'> if we know for sure a document is specifically about COVID-19.
         If it's not immediately clear from the source it's coming from, return None."""
-        return None
+        return True
 
     def _parse_license(self, doc):
         """ Returns the license of a document as a <class 'str'> if it is specified in the original doc."""
-        return doc["coredata"].get('openaccessUserLicense', None)
+        #TODO: Get this from the scraper
+        return None
 
     def _parse_pmcid(self, doc):
         """ Returns the pmcid of a document as a <class 'str'>."""
@@ -184,7 +186,7 @@ class ElsevierParser(Parser):
 
     def _parse_pubmed_id(self, doc):
         """ Returns the PubMed ID of a document as a <class 'str'>."""
-        return doc.get("pubmed-id", None)
+        return None
 
     def _parse_who_covidence(self, doc):
         """ Returns the who_covidence of a document as a <class 'str'>."""
@@ -192,29 +194,13 @@ class ElsevierParser(Parser):
 
     def _parse_version(self, doc):
         """ Returns the version of a document as a <class 'int'>."""
-        return 1
+        # TODO: Get this from the scraper
+        None
 
     def _parse_copyright(self, doc):
         """ Returns the copyright notice of a document as a <class 'str'>."""
-        return doc["coredata"].get("prism:copyright")
-
-    def _preprocess(self, doc):
-        """
-        Preprocesses an entry from the Elsevier_corona_meta collection into a flattened
-        metadata document.
-
-        Args:
-            doc:
-
-        Returns:
-
-        """
-        mds = doc["meta"]
-        mds = mds.replace('\n', '\\n')
-        mds = mds.replace(chr(468), "u")
-        metadata = json.loads(mds)["full-text-retrieval-response"]
-        metadata["mtime"] = doc["mtime"]
-        return metadata
+        # TODO: Get this from the scraper
+        None
 
     def _postprocess(self, doc, parsed_doc):
         """
@@ -223,19 +209,5 @@ class ElsevierParser(Parser):
 
         """
         # Apparently the builder needs this to be happy.
-        parsed_doc['mtime'] = doc.get('mtime', None)
-        parsed_doc['scopus_eid'] = doc["coredata"].get("eid", None)
-        parsed_doc["_id"] = doc["_id"]
+        parsed_doc['PDF_gridfs_id'] = doc.get('PDF_gridfs_id', None)
         return parsed_doc
-
-class UnparsedElsevierDocument(DynamicDocument):
-    meta = {"collection": "Elsevier_corona_meta"
-    }
-
-    parser = ElsevierParser()
-
-    parsed_class = ElsevierDocument
-
-    parsed_document = ReferenceField(ElsevierDocument, required=False)
-
-    last_updated = DateTimeField(db_field="mtime")
