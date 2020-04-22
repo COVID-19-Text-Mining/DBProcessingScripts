@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from mongoengine import (
     connect, Document, EmbeddedDocumentField,
     StringField, ListField,
-    EmbeddedDocument, EmailField, ValidationError, DateTimeField, DynamicEmbeddedDocument, BooleanField)
+    EmbeddedDocument, EmailField, ValidationError, DateTimeField, DynamicEmbeddedDocument, BooleanField, IntField)
 
 __all__ = [
     'Author', 'ExtendedParagraph', 'Reference', 'VespaDocument',
@@ -13,6 +13,7 @@ class Author(EmbeddedDocument):
     first_name = StringField(default=None)
     middle_name = StringField(default=None)
     last_name = StringField(default=None)
+    name = StringField(default=None)
     institution = StringField(default=None)
     email = EmailField(default=None)
 
@@ -21,7 +22,7 @@ class Author(EmbeddedDocument):
 
         if all(map(
                 lambda x: x is None,
-                (self.first_name, self.middle_name, self.last_name))):
+                (self.first_name, self.middle_name, self.last_name, self.name))):
             raise ValidationError('At least one name must be specified.')
 
 
@@ -65,6 +66,8 @@ class VespaDocument(Document):
     source_display = StringField(required=True)
     origin = StringField(required=True)
     link = StringField(required=True)
+    version = IntField()
+    copyright = StringField()
     last_updated = DateTimeField(required=True)
     _bt = DateTimeField(required=True)
 
@@ -76,29 +79,30 @@ class VespaDocument(Document):
     has_year = BooleanField(required=True)
     has_month = BooleanField(required=True)
     has_day = BooleanField(required=True)
-    is_preprint = BooleanField(required=True)
-    is_covid19 = BooleanField(required=True)
+    is_preprint = BooleanField()
+    is_covid19 = BooleanField()
 
     cord_uid = StringField(default=None)
     pmcid = StringField(default=None)
     pubmed_id = StringField(default=None)
+    issn = StringField()
+    scopus_eid = StringField()
 
-    unparsed_doc_id = StringField(required=True)
 
-    indexes = [
-            'doi', '#doi',
-            'journal', '#journal', 'journal_short', '#journal_short',
-            'publication_date',
-            'has_full_text',
-            'origin',
-            'last_updated',
-            'has_year', 'has_month', 'has_day',
-            'is_preprint', 'is_covid19',
-            'cord_uid', 'pmcid', 'pubmed_id'
-        ]
+    # indexes = [
+    #         'doi', '#doi',
+    #         'journal', 'journal_short',
+    #         'publication_date',
+    #         'has_full_text',
+    #         'origin',
+    #         'last_updated',
+    #         'has_year', 'has_month', 'has_day',
+    #         'is_preprint', 'is_covid19',
+    #         'cord_uid', 'pmcid', 'pubmed_id'
+    #     ]
 
     meta = {"collection": "",
-        "indexes": indexes,
+        "indexes": [],
         "allow_inheritance": True,
         "abstract": True
     }
@@ -395,6 +399,7 @@ class Parser(ABC):
                                      "pubmed_id": self._parse_pubmed_id(doc),
                                      "who_covidence": self._parse_who_covidence(doc),
                                      "version": self._parse_version(doc),
-                                     "copyright": self._parse_copyright(doc)
+                                     "copyright": self._parse_copyright(doc),
+                                     "is_covid19": self._parse_is_covid19(doc)
                                  }
                                  )

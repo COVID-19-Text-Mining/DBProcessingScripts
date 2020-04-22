@@ -8,8 +8,8 @@ from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 
 class ElsevierDocument(VespaDocument):
     indexes = [
-        'doi', '#doi',
-        'journal', '#journal', 'journal_short', '#journal_short',
+        'doi',
+        'journal', 'journal_short',
         'publication_date',
         'has_full_text',
         'origin',
@@ -112,7 +112,7 @@ class ElsevierParser(Parser):
 
     def _parse_has_full_text(self, doc):
         """ Returns a <class 'bool'> specifying if we have the full text."""
-        pass
+        return False
 
     def _parse_body_text(self, doc):
         """ Returns the body_text of a document as a <class 'list'> of <class 'dict'>.
@@ -227,6 +227,8 @@ class ElsevierParser(Parser):
         parsed_doc['scopus_eid'] = doc["coredata"].get("eid", None)
         return parsed_doc
 
+from pprint import pprint
+
 class UnparsedElsevierDocument(DynamicDocument):
     meta = {"collection": "Elsevier_corona_meta"
     }
@@ -241,4 +243,7 @@ class UnparsedElsevierDocument(DynamicDocument):
 
     def parse(self):
         parsed_document = self.parser.parse(json.loads(self.to_json()))
+        parsed_document['_bt'] = datetime.now()
+        parsed_document['unparsed_document'] = self
+        del(parsed_document['mtime'])
         return ElsevierDocument(**parsed_document)
