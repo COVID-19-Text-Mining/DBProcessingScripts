@@ -22,7 +22,7 @@ def find_references(doi):
     if doi:
         response = requests.get(f"https://opencitations.net/index/api/v1/references/{doi}").json()
         if response:
-            references = [{"doi": r['cited'].replace("coci =>", "")} for r in response]
+            references = [{"doi": r['cited'].replace("coci =>", ""), "text": r['cited'].replace("coci =>", "")} for r in response]
 
     if references:
         return references
