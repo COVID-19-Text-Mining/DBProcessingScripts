@@ -368,7 +368,7 @@ class UnparsedLitCovidCrossrefDocument(DynamicDocument):
     last_updated = DateTimeField(db_field="last_updated")
 
     def parse(self):
-        parsed_document = self.parser.parse(json.loads(self.to_json()))
+        parsed_document = self.parser.parse(self.to_mongo())
         parsed_document['_bt'] = datetime.now()
         parsed_document['unparsed_document'] = self
         return LitCovidCrossrefDocument(**parsed_document)
@@ -387,7 +387,7 @@ class UnparsedLitCovidPubmedXMLDocument(DynamicDocument):
     last_updated = DateTimeField(db_field="last_updated")
 
     def parse(self):
-        parsed_document = self.parser.parse(json.loads(self.to_json()))
+        parsed_document = self.parser.parse(self.to_mongo())
         parsed_document['_bt'] = datetime.now()
         parsed_document['unparsed_document'] = self
         return LitCovidPubmedDocument(**parsed_document)
