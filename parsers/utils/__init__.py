@@ -1,4 +1,5 @@
 import requests
+import xml.etree.ElementTree as ET
 
 
 def clean_title(title):
@@ -45,3 +46,32 @@ def find_cited_by(doi):
         return citations
     else:
         return None
+    
+    
+def find_pmcid_and_pubmed_id(doi):
+    """ Returns dictionary containing pmcid and pubmed_id if available.
+    Format:
+        {
+            pmcid : 'pmcid_string',
+            pubmed_id : 'pubmed_id__string'
+        }
+    Returns None for either id if not available. Returns None for both ids if doi
+    is None or request fails.
+    """
+    session = requests.Session()
+    try:
+        doi2otherid_url = 'https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/?ids=%s' % doi
+        response = session.get(doi2otherid_url)
+        root = ET.fromstring(response.content)
+        ids = dict()
+    except:
+        return {'pmcid' : None, 'pubmed_id' : None}
+    if 'pmcid' in root.find('record').attrib:
+        ids['pmcid'] = root.find('record').attrib['pmcid']
+    else:
+        ids['pmcid'] = None
+    if 'pmid' in root.find('record').attrib:
+        ids['pubmed_id'] = root.find('record').attrib['pmid']
+    else:
+        ids['pubmed_id'] = None
+    return ids
