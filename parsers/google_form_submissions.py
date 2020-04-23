@@ -16,7 +16,9 @@ class GoogleFormSubmissionDocument(VespaDocument):
         'last_updated',
         'has_year', 'has_month', 'has_day',
         'is_preprint', 'is_covid19',
-        'cord_uid', 'pmcid', 'pubmed_id'
+        'cord_uid', 'pmcid', 'pubmed_id',
+        'who_covidence', 'version', 'copyright',
+        'document_type'
     ]
 
     meta = {"collection": "google_form_submissions_parsed_vespa",
@@ -209,6 +211,11 @@ class GoogleSubmissionParser(Parser):
     def _parse_copyright(self, doc):
         """ Returns the copyright notice of a document as a <class 'str'>."""
         return None
+
+    def _parse_document_type(self, doc):
+        """ Returns the document type of a document as a <class 'str'>.
+        e.g. 'paper', 'clinical_trial', 'patent', 'news'. """
+        return 'paper' if self._parse_doi(doc) is not None else None
 
     def _preprocess(self, doc):
         """

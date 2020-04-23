@@ -18,7 +18,9 @@ class CORD19Document(VespaDocument):
         'last_updated',
         'has_year', 'has_month', 'has_day',
         'is_preprint', 'is_covid19',
-        'cord_uid', 'pmcid', 'pubmed_id'
+        'cord_uid', 'pmcid', 'pubmed_id',
+        'who_covidence', 'version', 'copyright',
+        'document_type'
     ]
 
     meta = {"collection": "CORD_parsed_vespa",
@@ -342,6 +344,11 @@ class CORD19Parser(Parser):
     def _parse_version(self, doc):
         """ Returns the version of a document as a <class 'int'>."""
         return 1
+
+    def _parse_document_type(self, doc):
+        """ Returns the document type of a document as a <class 'str'>.
+        e.g. 'paper', 'clinical_trial', 'patent', 'news'. """
+        return 'paper'
 
     def _parse_copyright(self, doc):
         """ Returns the copyright notice of a document as a <class 'str'>."""
