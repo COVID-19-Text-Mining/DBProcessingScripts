@@ -7,7 +7,6 @@ from pprint import PrettyPrinter
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 
 class GoogleFormSubmissionDocument(VespaDocument):
-
     meta = {"collection": "google_form_submissions_parsed_vespa",
             "indexes": indexes
     }
@@ -198,6 +197,11 @@ class GoogleSubmissionParser(Parser):
     def _parse_copyright(self, doc):
         """ Returns the copyright notice of a document as a <class 'str'>."""
         return None
+
+    def _parse_document_type(self, doc):
+        """ Returns the document type of a document as a <class 'str'>.
+        e.g. 'paper', 'clinical_trial', 'patent', 'news'. """
+        return 'paper' if self._parse_doi(doc) is not None else None
 
     def _preprocess(self, doc):
         """
