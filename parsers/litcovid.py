@@ -1,24 +1,14 @@
-from base import Parser, VespaDocument
+from base import Parser, VespaDocument, indexes
 from datetime import datetime
 import json
 import requests
 from utils import clean_title, find_cited_by, find_references, find_pmcid_and_pubmed_id
 from pprint import PrettyPrinter
 import xml.etree.ElementTree as ET
+from lxml import etree
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 
 class LitCovidCrossrefDocument(VespaDocument):
-    indexes = [
-        'doi',
-        'journal', 'journal_short',
-        'publication_date',
-        'has_full_text',
-        'origin',
-        'last_updated',
-        'has_year', 'has_month', 'has_day',
-        'is_preprint', 'is_covid19',
-        'cord_uid', 'pmcid', 'pubmed_id'
-    ]
 
     meta = {"collection": "Litcovid_crossref_parsed_vespa",
             "indexes": indexes
@@ -27,17 +17,6 @@ class LitCovidCrossrefDocument(VespaDocument):
     unparsed_document = ReferenceField('UnparsedLitCovidCrossrefDocument', required=True)
 
 class LitCovidPubmedDocument(VespaDocument):
-    indexes = [
-        'doi',
-        'journal', 'journal_short',
-        'publication_date',
-        'has_full_text',
-        'origin',
-        'last_updated',
-        'has_year', 'has_month', 'has_day',
-        'is_preprint', 'is_covid19',
-        'cord_uid', 'pmcid', 'pubmed_id'
-    ]
 
     meta = {"collection": "LitCovid_pubmed_xml_parsed_vespa",
             "indexes": indexes
@@ -182,9 +161,9 @@ class LitCovidParser(Parser):
         if 'xml' in doc.keys():
             doc = ET.fromstring(doc['xml'])
             article = doc.find('PubmedArticle').find('MedlineCitation').find('Article')
-            return article.find('ArticleDate') and article.find('ArticleDate').find('Year').text
+            return bool(article.find('ArticleDate') and article.find('ArticleDate') is not None and article.find('ArticleDate').find('Year').text)
         elif type(doc) == dict:
-            return 'date-parts' in doc['issued'] and len(doc['issued']['date-parts'][0]) >= 1
+            return bool('date-parts' in doc['issued'] and len(doc['issued']['date-parts'][0]) >= 1)
         return False
 
     def _parse_has_month(self, doc):
@@ -192,9 +171,9 @@ class LitCovidParser(Parser):
         if 'xml' in doc.keys():
             doc = ET.fromstring(doc['xml'])
             article = doc.find('PubmedArticle').find('MedlineCitation').find('Article')
-            return article.find('ArticleDate') and article.find('ArticleDate').find('Month').text
+            return bool(article.find('ArticleDate') and article.find('ArticleDate').find('Month').text)
         elif type(doc) == dict:
-            return 'date-parts' in doc['issued'] and len(doc['issued']['date-parts'][0]) >= 2
+            return bool('date-parts' in doc['issued'] and len(doc['issued']['date-parts'][0]) >= 2)
         return False
 
     def _parse_has_day(self, doc):
@@ -202,9 +181,9 @@ class LitCovidParser(Parser):
         if 'xml' in doc.keys():
             doc = ET.fromstring(doc['xml'])
             article = doc.find('PubmedArticle').find('MedlineCitation').find('Article')
-            return article.find('ArticleDate') and article.find('ArticleDate').find('Day').text
+            return bool(article.find('ArticleDate') and article.find('ArticleDate').find('Day').text)
         elif type(doc) == dict:
-            return 'date-parts' in doc['issued'] and len(doc['issued']['date-parts'][0]) == 3
+            return bool('date-parts' in doc['issued'] and len(doc['issued']['date-parts'][0]) == 3)
         return False
 
     def _parse_abstract(self, doc):
@@ -282,6 +261,11 @@ class LitCovidParser(Parser):
             return doc['link'][0]['URL']
         elif self._parse_doi(doc):
             return 'https://doi.org/' + self._parse_doi(doc)
+        elif self._parse_pubmed_id(doc):
+            return "https://www.ncbi.nlm.nih.gov/pubmed/{}".format(self._parse_pubmed_id(doc))
+        from pprint import pprint
+        pprint(doc)
+        pprint(self._parse_pubmed_id(doc))
         return
 
     def _parse_category_human(self, doc):
@@ -320,6 +304,12 @@ class LitCovidParser(Parser):
 
     def _parse_pubmed_id(self, doc):
         """ Returns the PubMed ID of a document as a <class 'str'>."""
+        if 'xml' in doc.keys():
+            doc = etree.fromstring(doc['xml'])
+            results = doc.xpath("//ArticleId[@IdType = 'pubmed']")
+            pmid = results[0]
+            if pmid is not None:
+                return str(pmid)
         return find_pmcid_and_pubmed_id(self._parse_doi(doc))['pubmed_id']
 
     def _parse_who_covidence(self, doc):

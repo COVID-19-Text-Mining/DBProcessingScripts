@@ -9,13 +9,25 @@ __all__ = [
     'Parser'
 ]
 
+indexes = [
+    'doi',
+    'journal', 'journal_short',
+    'publication_date',
+    'has_full_text',
+    'origin',
+    'last_updated',
+    'has_year', 'has_month', 'has_day',
+    'is_preprint', 'is_covid19',
+    'cord_uid', 'pmcid', 'pubmed_id'
+]
+
 class Author(EmbeddedDocument):
     first_name = StringField(default=None)
     middle_name = StringField(default=None)
     last_name = StringField(default=None)
     name = StringField(default=None)
     institution = StringField(default=None)
-    email = EmailField(default=None)
+    email = StringField(default=None)
 
     def validate(self, clean=True):
         super(Author, self).validate(clean)

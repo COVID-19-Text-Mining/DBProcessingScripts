@@ -1,4 +1,4 @@
-from base import Parser, VespaDocument
+from base import Parser, VespaDocument, indexes
 import os
 import pymongo
 from datetime import datetime
@@ -10,17 +10,7 @@ from pdf_extractor.paragraphs import extract_paragraphs_pdf
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 
 class BiorxivDocument(VespaDocument):
-    indexes = [
-        'doi',
-        'journal', 'journal_short',
-        'publication_date',
-        'has_full_text',
-        'origin',
-        'last_updated',
-        'has_year', 'has_month', 'has_day',
-        'is_preprint', 'is_covid19',
-        'cord_uid', 'pmcid', 'pubmed_id'
-    ]
+
 
     meta = {"collection": "biorxiv_parsed_vespa",
             "indexes": indexes
@@ -61,8 +51,8 @@ class BiorxivParser(Parser):
         for a in author_list:
             author = {}
             author['name'] = a['Name']['fn'] + " " + a['Name']['ln']
-            author['first'] = a['Name']['fn']
-            author['last'] = a['Name']['ln']
+            author['first_name'] = a['Name']['fn']
+            author['last_name'] = a['Name']['ln']
             authors.append(author)
         return authors
 
@@ -247,4 +237,5 @@ class UnparsedBiorxivDocument(DynamicDocument):
         parsed_document = self.parser.parse(self.to_mongo())
         parsed_document['_bt'] = datetime.now()
         parsed_document['unparsed_document'] = self
+        del(parsed_document['PDF_gridfs_id'])
         return BiorxivDocument(**parsed_document)
