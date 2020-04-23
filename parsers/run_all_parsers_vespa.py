@@ -3,6 +3,7 @@ from elsevier import UnparsedElsevierDocument
 from google_form_submissions import UnparsedGoogleFormSubmissionDocument
 from litcovid import UnparsedLitCovidCrossrefDocument, UnparsedLitCovidPubmedXMLDocument
 from biorxiv import UnparsedBiorxivDocument
+from cord19 import UnparsedCORD19CustomDocument, UnparsedCORD19CommDocument, UnparsedCORD19NoncommDocument, UnparsedCORD19XrxivDocument
 from datetime import datetime
 from joblib import Parallel, delayed
 import os
@@ -20,7 +21,16 @@ def init_mongoengine():
 
 init_mongoengine()
 
-unparsed_collection_list = [UnparsedLitCovidCrossrefDocument, UnparsedLitCovidPubmedXMLDocument, UnparsedBiorxivDocument, UnparsedGoogleFormSubmissionDocument, UnparsedElsevierDocument]
+unparsed_collection_list = [UnparsedCORD19CustomDocument,
+     UnparsedCORD19CommDocument,
+     UnparsedCORD19NoncommDocument, 
+     UnparsedCORD19XrxivDocument,
+     UnparsedBiorxivDocument, 
+     UnparsedLitCovidCrossrefDocument, 
+     UnparsedLitCovidPubmedXMLDocument, 
+     UnparsedGoogleFormSubmissionDocument, 
+     UnparsedElsevierDocument,
+     ]
 
 def parse_document(document):
 
