@@ -9,7 +9,6 @@ from lxml import etree
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 
 class LitCovidCrossrefDocument(VespaDocument):
-
     meta = {"collection": "Litcovid_crossref_parsed_vespa",
             "indexes": indexes
     }
@@ -17,7 +16,6 @@ class LitCovidCrossrefDocument(VespaDocument):
     unparsed_document = ReferenceField('UnparsedLitCovidCrossrefDocument', required=True)
 
 class LitCovidPubmedDocument(VespaDocument):
-
     meta = {"collection": "LitCovid_pubmed_xml_parsed_vespa",
             "indexes": indexes
     }
@@ -323,6 +321,11 @@ class LitCovidParser(Parser):
     def _parse_copyright(self, doc):
         """ Returns the copyright notice of a document as a <class 'str'>."""
         return None
+
+    def _parse_document_type(self, doc):
+        """ Returns the document type of a document as a <class 'str'>.
+        e.g. 'paper', 'clinical_trial', 'patent', 'news'. """
+        return 'paper'
 
     def _preprocess(self, doc):
         """

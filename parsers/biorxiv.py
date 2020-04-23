@@ -10,8 +10,6 @@ from pdf_extractor.paragraphs import extract_paragraphs_pdf
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 
 class BiorxivDocument(VespaDocument):
-
-
     meta = {"collection": "biorxiv_parsed_vespa",
             "indexes": indexes
     }
@@ -210,6 +208,11 @@ class BiorxivParser(Parser):
         """ Returns the copyright notice of a document as a <class 'str'>."""
         # TODO: Get this from the scraper
         None
+
+    def _parse_document_type(self, doc):
+        """ Returns the document type of a document as a <class 'str'>.
+        e.g. 'paper', 'clinical_trial', 'patent', 'news'. """
+        return 'paper'
 
     def _postprocess(self, doc, parsed_doc):
         """

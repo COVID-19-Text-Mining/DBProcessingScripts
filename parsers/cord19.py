@@ -340,6 +340,11 @@ class CORD19Parser(Parser):
         """ Returns the version of a document as a <class 'int'>."""
         return 1
 
+    def _parse_document_type(self, doc):
+        """ Returns the document type of a document as a <class 'str'>.
+        e.g. 'paper', 'clinical_trial', 'patent', 'news'. """
+        return 'paper'
+
     def _parse_copyright(self, doc):
         """ Returns the copyright notice of a document as a <class 'str'>."""
         assertions = doc.get("crossref_raw_result", {}).get("assertion", [])

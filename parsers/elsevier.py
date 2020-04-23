@@ -187,6 +187,11 @@ class ElsevierParser(Parser):
         """ Returns the copyright notice of a document as a <class 'str'>."""
         return doc["coredata"].get("prism:copyright")
 
+    def _parse_document_type(self, doc):
+        """ Returns the document type of a document as a <class 'str'>.
+        e.g. 'paper', 'clinical_trial', 'patent', 'news'. """
+        return 'paper'
+
     def _preprocess(self, doc):
         """
         Preprocesses an entry from the Elsevier_corona_meta collection into a flattened
