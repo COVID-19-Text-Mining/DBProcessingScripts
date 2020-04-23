@@ -1,31 +1,19 @@
-from parsers.base import Parser, VespaDocument
+from base import Parser, VespaDocument, indexes
 import json
 import re
 from datetime import datetime
 import requests
-from parsers.utils import clean_title, clean_abstract, find_cited_by, find_references
-from mongoengine import DynamicDocument, ReferenceField, DateTimeField
+from utils import clean_title, clean_abstract, find_cited_by, find_references
+from mongoengine import DynamicDocument, ReferenceField, DateTimeField, GenericReferenceField
 from collections import defaultdict
 
 
 class CORD19Document(VespaDocument):
-    indexes = [
-        'doi',
-        'journal', 'journal_short',
-        'publication_date',
-        'has_full_text',
-        'origin',
-        'last_updated',
-        'has_year', 'has_month', 'has_day',
-        'is_preprint', 'is_covid19',
-        'cord_uid', 'pmcid', 'pubmed_id'
-    ]
-
     meta = {"collection": "CORD_parsed_vespa",
             "indexes": indexes
             }
 
-    unparsed_document = ReferenceField('UnparsedCORD19Document', required=True)
+    unparsed_document = GenericReferenceField(required=True)
 
 
 class CORD19Parser(Parser):
@@ -71,15 +59,19 @@ class CORD19Parser(Parser):
 
                 if a['email'] != "":
                     author['email'] = a['email'].strip()
+                    if author['email'][-1] == ".":
+                        author['email'] = author['email'][:-1]
 
                 if 'institution' in a['affiliation'].keys():
-                    author['affiliation'] = a['affiliation']['institution']
+                    author['institution'] = a['affiliation']['institution']
 
                 if len(author['name']) > 3:
                     author_list.append(author)
-        else:
+        elif 'csv_raw_result' in doc:
             author_list = [{'name': a} for a in doc['csv_raw_result']['authors'].split(';')]
-
+        else:
+            author_list = []
+            
         return author_list
 
     def _parse_journal(self, doc):
@@ -108,7 +100,7 @@ class CORD19Parser(Parser):
         """ Returns the shortend journal name of a document as a <class 'str'>, if available.
          e.g. 'Comp. Mat. Sci.' """
         journal_maybe_array = doc.get('crossref_raw_result', {}).get("short-container-title")
-        journal = journal_maybe_array[0] if isinstance(journal_maybe_array, list) else journal_maybe_array
+        journal = journal_maybe_array[0] if isinstance(journal_maybe_array, list) and len(journal_maybe_array) > 0 else str(journal_maybe_array)
         return journal
 
     def parse_date_parts(self, doc):
@@ -169,21 +161,23 @@ class CORD19Parser(Parser):
 
         if "crossref_raw_result" in doc:
             return self.parse_date_parts(doc).get("publication_date", None)
-        else:
+        elif "csv_raw_result" in doc:
             try:
-                date = datetime.datetime.strptime(doc['csv_raw_result']['publish_time'],
+                date = datetime.strptime(doc['csv_raw_result']['publish_time'],
                                                   '%Y-%m-%d')
             except ValueError:
                 try:
-                    date = datetime.datetime.strptime(doc['csv_raw_result']['publish_time'],
+                    date = datetime.strptime(doc['csv_raw_result']['publish_time'],
                                                       '%Y %b %d')
                 except ValueError:
                     try:
-                        date = datetime.datetime.strptime(
+                        date = datetime.strptime(
                             doc['csv_raw_result']['publish_time'], '%Y %b')
                     except ValueError:
-                        date = datetime.datetime.strptime(
+                        date = datetime.strptime(
                             doc['csv_raw_result']['publish_time'], '%Y')
+        else:
+            date = datetime(year=1,month=1,day=1)
         return date
 
     def _parse_has_year(self, doc):
@@ -210,8 +204,10 @@ class CORD19Parser(Parser):
                 abstract = ""
                 for t in doc['abstract']:
                     abstract += t['text']
-        else:
+        elif 'csv_raw_result' in doc:
             abstract = doc['csv_raw_result']['abstract']
+        else:
+            abstract = ""
 
         return clean_abstract(abstract)
 
@@ -252,7 +248,7 @@ class CORD19Parser(Parser):
                 sections[t['section']] = sections[t['section']] + t['text']
             except KeyError:
                 sections[t['section']] = t['text']
-        sections_list = [{"Section Heading": k, "Text": v} for k, v in sections.items()]
+        sections_list = [{"section_heading": k, "text": v} for k, v in sections.items()]
         return sections_list
 
     def _parse_references(self, doc):
@@ -270,7 +266,8 @@ class CORD19Parser(Parser):
                     'title': bib.get('title', ''),
                     'year': bib.get('year', None),
                     'issn': str(bib.get('issn', '')),
-                    'doi': bib.get('other_ids', {}).get('DOI', None)
+                    'doi': str(bib.get('other_ids', {}).get('DOI', "")),
+                    "text": str(bib.get('other_ids', {}).get('DOI', ""))
                 })
         if len(bib_entries) == 0:
             doi = self._parse_doi(doc)
@@ -289,7 +286,7 @@ class CORD19Parser(Parser):
         doi = self._parse_doi(doc)
         if doi:
             return "https://doi.org/%s" % doi
-        return None
+        return "https://pages.semanticscholar.org/coronavirus-research"
 
     def _parse_category_human(self, doc):
         """ Returns the category_human of a document as a <class 'list'> of <class 'str'>"""
@@ -332,7 +329,7 @@ class CORD19Parser(Parser):
     def _parse_pubmed_id(self, doc):
         """ Returns the PubMed ID of a document as a <class 'str'>."""
         pubmed_id = doc.get("csv_raw_result", {}).get("pubmed_id", None)
-        return pubmed_id if pubmed_id != "" else None
+        return str(pubmed_id) if pubmed_id != "" else None
 
     def _parse_who_covidence(self, doc):
         """ Returns the who_covidence of a document as a <class 'str'>."""
@@ -355,38 +352,76 @@ class CORD19Parser(Parser):
         return doc["csv_raw_result"]["cord_uid"]
 
 
-from pprint import pprint
 
-class UnparsedCORD19Document(DynamicDocument):
-    meta = {"allow_inheritance": True}
 
-    def __init__(self, collection):
-        self.meta["collection"] = collection
-        self.parser = CORD19Parser(collection)
-        self.parsed_class = CORD19Document
-        self.parsed_document = ReferenceField(CORD19Document, required=False)
-        self.last_updated = DateTimeField(db_field="mtime")
+class UnparsedCORD19CustomDocument(DynamicDocument):
+    meta = {"collection": "CORD_custom_license"
+    }
+
+    parser = CORD19Parser(collection="CORD_custom_license")
+
+    parsed_class = CORD19Document
+
+    parsed_document = ReferenceField(CORD19Document, required=False)
+
+    last_updated = DateTimeField(db_field="last_updated")
 
     def parse(self):
-        parsed_document = self.parser.parse(json.loads(self.to_json()))
+        parsed_document = self.parser.parse(self.to_mongo())
         parsed_document['_bt'] = datetime.now()
         parsed_document['unparsed_document'] = self
-        del (parsed_document['mtime'])
         return CORD19Document(**parsed_document)
 
+class UnparsedCORD19CommDocument(DynamicDocument):
+    meta = {"collection": "CORD_comm_use_subset"
+    }
 
-class UnparsedCORD19CustomDocument(UnparsedCORD19Document):
-    def __init__(self):
-        super().__init__(collection="CORD_custom_license")
+    parser = CORD19Parser(collection="CORD_comm_use_subset")
 
-class UnparsedCORD19CommDocument(UnparsedCORD19Document):
-    def __init__(self):
-        super().__init__(collection="CORD_comm_use_subset")
+    parsed_class = CORD19Document
 
-class UnparsedCORD19NoncommDocument(UnparsedCORD19Document):
-    def __init__(self):
-        super().__init__(collection="CORD_noncomm_use_subset")
+    parsed_document = ReferenceField(CORD19Document, required=False)
 
-class UnparsedCORD19XrxivDocument(UnparsedCORD19Document):
-    def __init__(self):
-        super().__init__(collection="CORD_biorxiv_medrxiv")
+    last_updated = DateTimeField(db_field="last_updated")
+
+    def parse(self):
+        parsed_document = self.parser.parse(self.to_mongo())
+        parsed_document['_bt'] = datetime.now()
+        parsed_document['unparsed_document'] = self
+        return CORD19Document(**parsed_document)
+
+class UnparsedCORD19NoncommDocument(DynamicDocument):
+    meta = {"collection": "CORD_noncomm_use_subset"
+    }
+
+    parser = CORD19Parser(collection="CORD_noncomm_use_subset")
+
+    parsed_class = CORD19Document
+
+    parsed_document = ReferenceField(CORD19Document, required=False)
+
+    last_updated = DateTimeField(db_field="last_updated")
+
+    def parse(self):
+        parsed_document = self.parser.parse(self.to_mongo())
+        parsed_document['_bt'] = datetime.now()
+        parsed_document['unparsed_document'] = self
+        return CORD19Document(**parsed_document)
+
+class UnparsedCORD19XrxivDocument(DynamicDocument):
+    meta = {"collection": "CORD_biorxiv_medrxiv"
+    }
+
+    parser = CORD19Parser(collection="CORD_biorxiv_medrxiv")
+
+    parsed_class = CORD19Document
+
+    parsed_document = ReferenceField(CORD19Document, required=False)
+
+    last_updated = DateTimeField(db_field="last_updated")
+
+    def parse(self):
+        parsed_document = self.parser.parse(self.to_mongo())
+        parsed_document['_bt'] = datetime.now()
+        parsed_document['unparsed_document'] = self
+        return CORD19Document(**parsed_document)

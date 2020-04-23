@@ -1,4 +1,4 @@
-from base import Parser, VespaDocument
+from base import Parser, VespaDocument, indexes
 import json
 from datetime import datetime
 import requests
@@ -7,17 +7,6 @@ from pprint import PrettyPrinter
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 
 class GoogleFormSubmissionDocument(VespaDocument):
-    indexes = [
-        'doi',
-        'journal', 'journal_short',
-        'publication_date',
-        'has_full_text',
-        'origin',
-        'last_updated',
-        'has_year', 'has_month', 'has_day',
-        'is_preprint', 'is_covid19',
-        'cord_uid', 'pmcid', 'pubmed_id'
-    ]
 
     meta = {"collection": "google_form_submissions_parsed_vespa",
             "indexes": indexes
