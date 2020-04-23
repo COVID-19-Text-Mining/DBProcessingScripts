@@ -344,6 +344,12 @@ class Parser(ABC):
         """ Returns the CORD UID of a document as a <class 'str'>."""
         return None
 
+    @abstractmethod
+    def _parse_document_type(self, doc):
+        """ Returns the document type of a document as a <class 'str'>.
+        e.g. 'paper', 'clinical_trial', 'patent', 'news'. """
+        return None
+
     def _preprocess(self, doc):
         """ Do any preprocessing you need in this method. doc=self._preprocess(doc)
         is called before the doc is parsed by the various _parse_<field> methods
@@ -404,6 +410,7 @@ class Parser(ABC):
                                      "who_covidence": self._parse_who_covidence(doc),
                                      "version": self._parse_version(doc),
                                      "copyright": self._parse_copyright(doc),
-                                     "is_covid19": self._parse_is_covid19(doc)
+                                     "cord_uid": self._parse_cord_uid(doc),
+                                     "document_type": self._parse_document_type(doc)
                                  }
                                  )
