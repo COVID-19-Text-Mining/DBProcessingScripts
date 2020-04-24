@@ -34,7 +34,7 @@ class PHOParser(Parser):
         return 'Public Health Ontario Synopsis'
 
     def _parse_publication_date(self, doc):
-        return datetime.strptime(doc['Date_Created'].replace(',', ''), '%B %d %Y')
+        return datetime.strptime(doc['Date_Created'].replace(',', '').strip(), '%B %d %Y')
 
     def _parse_abstract(self, doc):
         paragraphs = [doc['Desc']]
