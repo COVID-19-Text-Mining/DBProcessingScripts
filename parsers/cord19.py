@@ -160,7 +160,7 @@ class CORD19Parser(Parser):
         """ Returns the publication_date of a document as a <class 'datetime.datetime'>"""
 
         if "crossref_raw_result" in doc:
-            return self.parse_date_parts(doc).get("publication_date", None)
+            return self.parse_date_parts(doc).get("publication_date", datetime(year=1,month=1,day=1))
         elif "csv_raw_result" in doc:
             try:
                 date = datetime.strptime(doc['csv_raw_result']['publish_time'],
@@ -185,15 +185,15 @@ class CORD19Parser(Parser):
 
     def _parse_has_year(self, doc):
         """ Returns a <class 'bool'> specifying whether a document's year can be trusted."""
-        return self.parse_date_parts(doc).get("has_year", None)
+        return self.parse_date_parts(doc).get("has_year", False)
 
     def _parse_has_month(self, doc):
         """ Returns a <class 'bool'> specifying whether a document's month can be trusted."""
-        return self.parse_date_parts(doc).get("has_month", None)
+        return self.parse_date_parts(doc).get("has_month", False)
 
     def _parse_has_day(self, doc):
         """ Returns a <class 'bool'> specifying whether a document's day can be trusted."""
-        return self.parse_date_parts(doc).get("has_day", None)
+        return self.parse_date_parts(doc).get("has_day", False)
 
     def _parse_abstract(self, doc):
         """ Returns the abstract of a document as a <class 'str'>.
