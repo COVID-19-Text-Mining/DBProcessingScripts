@@ -87,6 +87,8 @@ class VespaDocument(Document):
     pubmed_id = StringField(default=None)
     issn = StringField()
     scopus_eid = StringField()
+    copyright = StringField(default=None)
+    document_type = StringField(default=None)
 
 
     # indexes = [
