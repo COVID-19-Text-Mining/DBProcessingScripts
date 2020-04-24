@@ -48,9 +48,13 @@ def find_cited_by(doi):
 
     citations = []
     if doi:
-        response = requests.get(f"https://opencitations.net/index/api/v1/citations/{doi}").json()
+        response = requests.get(f"https://opencitations.net/index/api/v1/citations/{doi}")
         if response:
-            citations = [{"doi": r['citing'].replace("coci =>", ""), "text": r['citing'].replace("coci =>", "")} for r in response]
+            try:
+                response = response.json()
+                citations = [{"doi": r['citing'].replace("coci =>", ""), "text": r['citing'].replace("coci =>", "")} for r in response]
+            except json.decoder.JSONDecodeError:
+                pass
     if citations:
         return citations
     else:
