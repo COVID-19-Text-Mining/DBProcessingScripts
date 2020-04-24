@@ -36,7 +36,7 @@ def parse_document(document):
 
     parsed_document = document.parsed_document
 
-    if parsed_document is None or document.last_updated > parsed_document._bt or parse_document.version < parsed_document.latest_version:
+    if parsed_document is None or document.last_updated > parsed_document._bt or parsed_document.version < parsed_document.latest_version:
         # print(document)
         parsed_document = document.parse()
         document.parsed_document = parsed_document
