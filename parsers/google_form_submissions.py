@@ -56,7 +56,7 @@ class GoogleSubmissionParser(Parser):
 
     def _parse_issn(self, doc):
         """ Returns the ISSN and (or) EISSN of a document as a <class 'list'> of <class 'str'> """
-        if 'crossref_raw_result in doc.keys()' and 'ISSN' in doc['crossref_raw_result']['message'].keys():
+        if 'crossref_raw_resul't in doc.keys() and 'ISSN' in doc['crossref_raw_result']['message'].keys():
             return doc['crossref_raw_result']['message']['ISSN'][0]
         return None
 
