@@ -18,6 +18,7 @@ class PHODocument(VespaDocument):
         "indexes": indexes
     }
 
+    latest_version = latest_version
     unparsed_document = ReferenceField('UnparsedPHODocument', required=True)
 
 
