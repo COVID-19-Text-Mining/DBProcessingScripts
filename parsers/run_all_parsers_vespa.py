@@ -4,6 +4,7 @@ from google_form_submissions import UnparsedGoogleFormSubmissionDocument
 from litcovid import UnparsedLitCovidCrossrefDocument, UnparsedLitCovidPubmedXMLDocument
 from biorxiv import UnparsedBiorxivDocument
 from cord19 import UnparsedCORD19CustomDocument, UnparsedCORD19CommDocument, UnparsedCORD19NoncommDocument, UnparsedCORD19XrxivDocument
+from pho import UnparsedPHODocument
 from datetime import datetime
 from joblib import Parallel, delayed
 import os
@@ -22,8 +23,9 @@ def init_mongoengine():
 init_mongoengine()
 
 unparsed_collection_list = [
+     UnparsedPHODocument,
      UnparsedElsevierDocument,
-    UnparsedCORD19CustomDocument,
+     UnparsedCORD19CustomDocument,
      UnparsedCORD19CommDocument,
      UnparsedCORD19NoncommDocument, 
      UnparsedCORD19XrxivDocument,

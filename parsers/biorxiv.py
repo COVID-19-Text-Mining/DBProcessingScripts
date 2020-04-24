@@ -9,7 +9,7 @@ from io import BytesIO
 from pdf_extractor.paragraphs import extract_paragraphs_pdf
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 
-latest_version = 1
+latest_version = 2
 
 class BiorxivDocument(VespaDocument):
     meta = {"collection": "biorxiv_parsed_vespa",
@@ -188,7 +188,7 @@ class BiorxivParser(Parser):
     def _parse_license(self, doc):
         """ Returns the license of a document as a <class 'str'> if it is specified in the original doc."""
         #TODO: Get this from the scraper
-        return None
+        return 'biorxiv'
 
     def _parse_pmcid(self, doc):
         """ Returns the pmcid of a document as a <class 'str'>."""
