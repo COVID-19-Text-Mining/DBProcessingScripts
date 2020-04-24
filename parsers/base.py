@@ -50,6 +50,8 @@ class VespaDocument(Document):
     title = StringField(default=None)
     authors = ListField(EmbeddedDocumentField(Author))
 
+    document_type = StringField(default=None)
+    
     journal = StringField(default=None)
     journal_short = StringField(default=None)
     publication_date = DateTimeField(required=True)
@@ -87,8 +89,6 @@ class VespaDocument(Document):
     pubmed_id = StringField(default=None)
     issn = StringField()
     scopus_eid = StringField()
-    copyright = StringField(default=None)
-    document_type = StringField(default=None)
 
 
     # indexes = [
