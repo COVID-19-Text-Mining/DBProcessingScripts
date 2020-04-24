@@ -81,10 +81,10 @@ class PHOParser(Parser):
         _parse_category_human = _parse_keywords = _parse_summary_human = \
         _parse_issn = _parse_journal_short = _parse_references = \
         _parse_cited_by = _parse_pmcid = _parse_pubmed_id = \
-        _parse_who_covidence = lambda x, y: None
+        _parse_who_covidence = lambda self, doc: None
 
     _parse_has_year = _parse_has_month = _parse_has_day = \
-        _parse_is_preprint = _parse_is_covid19 = lambda x, y: True
+        _parse_is_preprint = _parse_is_covid19 = lambda self, doc: True
 
     def _parse_version(self, doc):
         return 1
