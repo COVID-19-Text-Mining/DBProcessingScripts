@@ -7,12 +7,14 @@ from utils import clean_title, clean_abstract, find_cited_by, find_references
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField, GenericReferenceField
 from collections import defaultdict
 
+latest_version = 1
 
 class CORD19Document(VespaDocument):
     meta = {"collection": "CORD_parsed_vespa",
             "indexes": indexes
             }
 
+    latest_version = latest_version
     unparsed_document = GenericReferenceField(required=True)
 
 
@@ -341,7 +343,7 @@ class CORD19Parser(Parser):
 
     def _parse_version(self, doc):
         """ Returns the version of a document as a <class 'int'>."""
-        return 1
+        return latest_version
 
     def _parse_document_type(self, doc):
         """ Returns the document type of a document as a <class 'str'>.

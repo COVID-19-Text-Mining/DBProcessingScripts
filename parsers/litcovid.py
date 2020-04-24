@@ -8,11 +8,14 @@ import xml.etree.ElementTree as ET
 from lxml import etree
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 
+latest_version = 1
+
 class LitCovidCrossrefDocument(VespaDocument):
     meta = {"collection": "Litcovid_crossref_parsed_vespa",
             "indexes": indexes
     }
 
+    latest_version = latest_version
     unparsed_document = ReferenceField('UnparsedLitCovidCrossrefDocument', required=True)
 
 class LitCovidPubmedDocument(VespaDocument):
@@ -20,6 +23,7 @@ class LitCovidPubmedDocument(VespaDocument):
             "indexes": indexes
     }
 
+    latest_version = latest_version
     unparsed_document = ReferenceField('UnparsedLitCovidPubmedXMLDocument', required=True)
 
 class LitCovidParser(Parser):
@@ -316,7 +320,7 @@ class LitCovidParser(Parser):
 
     def _parse_version(self, doc):
         """ Returns the version of a document as a <class 'int'>."""
-        return 1
+        return latest_version
 
     def _parse_copyright(self, doc):
         """ Returns the copyright notice of a document as a <class 'str'>."""

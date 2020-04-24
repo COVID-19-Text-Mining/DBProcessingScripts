@@ -6,11 +6,14 @@ from utils import clean_title, find_cited_by, find_references, find_pmcid_and_pu
 from pprint import PrettyPrinter
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 
+latest_version = 1
+
 class GoogleFormSubmissionDocument(VespaDocument):
     meta = {"collection": "google_form_submissions_parsed_vespa",
             "indexes": indexes
     }
 
+    latest_version = latest_version
     unparsed_document = ReferenceField('UnparsedGoogleFormSubmissionDocument', required=True)
 
 class GoogleSubmissionParser(Parser):
@@ -35,7 +38,7 @@ class GoogleSubmissionParser(Parser):
         Each element in the authors list should have a "name" field with the author's
         full name (e.g. John Smith or J. Smith) as a <class 'str'>.
         """
-        if doc['authors']:
+        if 'authors' in doc.keys() and doc['authors']:
             authors = []
             for a in doc['authors']:
                 author = {"name": a['name']}
@@ -192,7 +195,7 @@ class GoogleSubmissionParser(Parser):
 
     def _parse_version(self, doc):
         """ Returns the version of a document as a <class 'int'>."""
-        return 1
+        return latest_version
 
     def _parse_copyright(self, doc):
         """ Returns the copyright notice of a document as a <class 'str'>."""
