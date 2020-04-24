@@ -21,7 +21,9 @@ def init_mongoengine():
 
 init_mongoengine()
 
-unparsed_collection_list = [UnparsedCORD19CustomDocument,
+unparsed_collection_list = [
+     UnparsedElsevierDocument,
+    UnparsedCORD19CustomDocument,
      UnparsedCORD19CommDocument,
      UnparsedCORD19NoncommDocument, 
      UnparsedCORD19XrxivDocument,
@@ -29,7 +31,6 @@ unparsed_collection_list = [UnparsedCORD19CustomDocument,
      UnparsedLitCovidCrossrefDocument, 
      UnparsedLitCovidPubmedXMLDocument, 
      UnparsedGoogleFormSubmissionDocument, 
-     UnparsedElsevierDocument,
      ]
 
 def parse_document(document):
@@ -58,6 +59,6 @@ def parse_documents(documents):
     for document in documents:
         parse_document(document)
 
-for collection in unparsed_collection_list:
-    with Parallel(n_jobs=32) as parallel:
-        parallel(delayed(parse_documents)(document) for document in grouper(50, collection.objects))
+
+with Parallel(n_jobs=32) as parallel:
+    parallel(delayed(parse_documents)(document) for collection in unparsed_collection_list for document in grouper(100, collection.objects))
