@@ -174,8 +174,11 @@ class CORD19Parser(Parser):
                         date = datetime.strptime(
                             doc['csv_raw_result']['publish_time'], '%Y %b')
                     except ValueError:
-                        date = datetime.strptime(
-                            doc['csv_raw_result']['publish_time'], '%Y')
+                        try:
+                            date = datetime.strptime(
+                                doc['csv_raw_result']['publish_time'], '%Y')
+                        except:
+                            date = datetime(year=1, month=1, day=1)
         else:
             date = datetime(year=1,month=1,day=1)
         return date
