@@ -1,9 +1,9 @@
-from parsers.base import Parser, VespaDocument
+from base import Parser, VespaDocument
 import json
 import re
 from datetime import datetime
 import requests
-from parsers.utils import clean_title, clean_abstract, find_cited_by, find_references
+from utils import clean_title, clean_abstract, find_cited_by, find_references
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 from collections import defaultdict
 
