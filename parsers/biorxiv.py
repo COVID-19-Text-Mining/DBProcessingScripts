@@ -9,11 +9,14 @@ from io import BytesIO
 from pdf_extractor.paragraphs import extract_paragraphs_pdf
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 
+latest_version = 1
+
 class BiorxivDocument(VespaDocument):
     meta = {"collection": "biorxiv_parsed_vespa",
             "indexes": indexes
     }
 
+    latest_version = latest_version
     unparsed_document = ReferenceField('UnparsedBiorxivDocument', required=True)
 
 class BiorxivParser(Parser):
@@ -201,8 +204,7 @@ class BiorxivParser(Parser):
 
     def _parse_version(self, doc):
         """ Returns the version of a document as a <class 'int'>."""
-        # TODO: Get this from the scraper
-        None
+        return latest_version
 
     def _parse_copyright(self, doc):
         """ Returns the copyright notice of a document as a <class 'str'>."""
