@@ -75,6 +75,8 @@ def find_pmcid_and_pubmed_id(doi):
         ids = dict()
     except:
         return {'pmcid' : None, 'pubmed_id' : None}
+    if root.find('record') is None:
+        return {'pmcid' : None, 'pubmed_id' : None}
     if 'pmcid' in root.find('record').attrib:
         ids['pmcid'] = root.find('record').attrib['pmcid']
     else:
