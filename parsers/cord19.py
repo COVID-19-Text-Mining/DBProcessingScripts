@@ -354,7 +354,10 @@ class CORD19Parser(Parser):
 
     def _parse_cord_uid(self, doc):
         """ Returns the CORD UID of a document as a <class 'str'>."""
-        return doc["csv_raw_result"]["cord_uid"]
+        if 'csv_raw_result' in doc.keys() and 'cord_uid' in doc["csv_raw_result"].keys():
+            return doc["csv_raw_result"]["cord_uid"]
+        else:
+            return None
 
 
 
