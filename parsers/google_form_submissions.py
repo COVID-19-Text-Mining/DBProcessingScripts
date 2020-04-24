@@ -50,7 +50,7 @@ class GoogleSubmissionParser(Parser):
 
     def _parse_journal(self, doc):
         """ Returns the journal of a document as a <class 'str'>. """
-        if len(doc['journal']) > 0:
+        if 'journal' in doc.keys() and len(doc['journal']) > 0:
             return doc['journal'][0]
         return None
 
