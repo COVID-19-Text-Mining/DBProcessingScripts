@@ -79,6 +79,7 @@ class VespaDocument(Document):
 
     source_display = StringField(required=True)
     origin = StringField(required=True)
+    document_type = StringField(required=True)
     link = StringField(required=True)
     version = IntField()
     copyright = StringField()
