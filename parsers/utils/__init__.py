@@ -29,9 +29,13 @@ def find_references(doi):
 
     references = []
     if doi:
-        response = requests.get(f"https://opencitations.net/index/api/v1/references/{doi}").json()
+        response = requests.get(f"https://opencitations.net/index/api/v1/references/{doi}")
         if response:
-            references = [{"doi": r['cited'].replace("coci =>", ""), "text": r['cited'].replace("coci =>", "")} for r in response]
+            try:
+                response = response.json()
+                references = [{"doi": r['cited'].replace("coci =>", ""), "text": r['cited'].replace("coci =>", "")} for r in response]
+            except json.decoder.JSONDecodeError:
+                pass
 
     if references:
         return references
