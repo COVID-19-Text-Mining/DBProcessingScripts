@@ -209,7 +209,8 @@ def build_entries():
     i=0
     for collection in parsed_collections:
         print(collection)
-        for doc in collection.objects:
+        docs = [doc for doc in collection.objects]
+        for doc in docs:
             i+= 1
             if i%1000 == 0:
                 print(i)
