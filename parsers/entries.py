@@ -194,19 +194,23 @@ def merge_documents(high_priority_doc, low_priority_doc):
     return merged_doc
 
 parsed_collections = [
-    ElsevierDocument,
     BiorxivDocument,
     GoogleFormSubmissionDocument,
     PHODocument,
     LitCovidCrossrefDocument,
     LitCovidPubmedDocument,
     CORD19Document,
+    ElsevierDocument,
 ]
 
 def build_entries():
+    i=0
     for collection in parsed_collections:
         print(collection)
         for doc in collection.objects:
+            i+= 1
+            if i%1000 == 0:
+                print(i)
             id_fields = [doc['doi'], 
             doc['pubmed_id'],
             doc['pmcid'],
@@ -214,7 +218,6 @@ def build_entries():
             ]
             matching_doc = find_matching_doc(doc)
             if matching_doc:
-                print("match")
                 insert_doc = EntriesDocument(**merge_documents(matching_doc, doc))
             elif any([x is not None for x in id_fields]):
                 insert_doc = EntriesDocument(**{k:v for k,v in doc.to_mongo().items() if k in entries_keys})
