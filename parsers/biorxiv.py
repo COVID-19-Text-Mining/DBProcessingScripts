@@ -220,7 +220,7 @@ class BiorxivParser(Parser):
         """
         Post-process an entry to add any last-minute fields required. Gets called right before parsed doc is
         returned. Return parsed_doc if you don't want to make any changes.
-
+`
         """
         # Apparently the builder needs this to be happy.
         parsed_doc['PDF_gridfs_id'] = doc.get('PDF_gridfs_id', None)

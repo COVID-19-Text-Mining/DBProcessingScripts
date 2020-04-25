@@ -40,6 +40,8 @@ def parse_document(document):
 
     parsed_document = document.parsed_document
 
+    if parsed_document.version == 1 and parsed_document.origin == "Scraper_connect_biorxiv_org":
+        print((parsed_document.origin, parsed_document.version))
     if parsed_document is None or document.last_updated > parsed_document._bt or parsed_document.version < parsed_document.latest_version:
         # print(document)
         print(parsed_document)
@@ -48,9 +50,8 @@ def parse_document(document):
         else:
             print("MATCH!"+str(parsed_document.version))
             new_doc = document.parse()
-            for field in new_doc._fields.keys():
-                if field != "_id":
-                    parse_document[field] = new_doc[field]
+            parsed_document.delete()
+            parsed_document = new_doc
         document.parsed_document = parsed_document
         # print(parsed_document)
         parsed_document.save()
