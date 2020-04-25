@@ -76,7 +76,7 @@ def find_pmcid_and_pubmed_id(doi):
     is None or request fails.
     """
     if doi is None:
-        return None
+        return {'pmcid' : None, 'pubmed_id' : None}
     
     session = requests.Session()
     try:
