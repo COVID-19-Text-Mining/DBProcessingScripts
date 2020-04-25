@@ -24,6 +24,7 @@ def init_mongoengine():
 init_mongoengine()
 
 unparsed_collection_list = [
+     UnparsedGoogleFormSubmissionDocument, 
      UnparsedPHODocument,
      UnparsedElsevierDocument,
      UnparsedCORD19CustomDocument,
@@ -33,7 +34,6 @@ unparsed_collection_list = [
      UnparsedBiorxivDocument, 
      UnparsedLitCovidCrossrefDocument, 
      UnparsedLitCovidPubmedXMLDocument, 
-     UnparsedGoogleFormSubmissionDocument, 
      ]
 
 def parse_document(document):
