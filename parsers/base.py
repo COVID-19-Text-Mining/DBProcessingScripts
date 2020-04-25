@@ -20,7 +20,7 @@ indexes = [
     'is_preprint', 'is_covid19',
     'cord_uid', 'pmcid', 'pubmed_id',
     'who_covidence', 'version', 'copyright',
-    'document_type', 'scopus_eid'
+    'document_type', 'scopus_eid',
 ]
 
 class Author(EmbeddedDocument):
@@ -150,7 +150,7 @@ class Parser(ABC):
         "has_year",
         "has_month",
         "has_day",
-        "is_pre_proof",
+        "is_preprint",
         "is_covid19",
         "license",
         "cord_uid",

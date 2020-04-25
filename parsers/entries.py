@@ -11,51 +11,68 @@ from litcovid import LitCovidCrossrefDocument, LitCovidPubmedDocument
 from biorxiv import BiorxivDocument
 from cord19 import CORD19Document
 from pho import PHODocument
-from mongoengine import ListField, GenericReferenceField, DoesNotExist
+from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictField
 
 class EntriesDocument(VespaDocument):
+
+    indexes = [
+    'journal', 'journal_short',
+    'publication_date',
+    'has_full_text',
+    'origin',
+    'last_updated',
+    'has_year', 'has_month', 'has_day',
+    'is_preprint', 'is_covid19',
+    'cord_uid',
+    'who_covidence', 'version', 'copyright',
+    'document_type',
+    {"fields": ["doi",],
+    "unique": True,
+    "partialFilterExpression": {
+        "doi": {"$type": "string"}
+        }
+    },
+    {"fields": ["pmcid",],
+    "unique": True,
+    "partialFilterExpression": {
+        "pmcid": {"$type": "string"}
+        }
+    },
+    {"fields": ["pubmed_id",],
+    "unique": True,
+    "partialFilterExpression": {
+        "pubmed_id": {"$type": "string"}
+        }
+    },
+    {"fields": ["scopus_eid",],
+    "unique": True,
+    "partialFilterExpression": {
+        "scopus_eid": {"$type": "string"}
+        }
+    },
+    ]
     meta = {"collection": "entries_vespa",
-            "indexes": indexes
+            "indexes": indexes,
+            "allow_inheritance": False
     }    
 
     source_documents = ListField(GenericReferenceField(), required=True)
+    embeddings = DictField(default={})
 
-    @staticmethod
-    def find_matching_doc(doc):
-        #This could definitely be better but I can't figure out how to mangle mongoengine search syntax in the right way
-        doi = doc['doi']
-        pubmed_id = doc['pubmed_id']
-        pmcid = doc['pmcid']
-        scopus_eid = doc['scopus_eid']
-        if doi:
-            try:
-                matching_doc = EntriesDocument.objects(Q(doi__iexact=doi)).get()
-                return matching_doc
-            except DoesNotExist:
-                pass
-        if pubmed_id:
-            try:
-                matching_doc = EntriesDocument.objects(Q(pubmed_id__iexact=pubmed_id)).get()
-                return matching_doc
-            except DoesNotExist:
-                pass
-        if pmcid:
-            try:
-                matching_doc = EntriesDocument.objects(Q(pmcid__iexact=pmcid)).get()
-                return matching_doc
-            except DoesNotExist:
-                pass
+entries_keys = [k for k in EntriesDocument._fields.keys() if k[0] != "_"]
 
-        if scopus_eid:
-            try:
-                matching_doc = EntriesDocument.objects(Q(scopus_eid__iexact=scopus_eid)).get()
-                return matching_doc
-            except DoesNotExist:
-                pass
-
-        return None
-
-entries_keys = EntriesDocument._fields.keys()
+def find_matching_doc(doc):
+    #This could definitely be better but I can't figure out how to mangle mongoengine search syntax in the right way
+    doi = doc['doi'] if doc['doi'] is not None else "_"
+    pubmed_id = doc['pubmed_id'] if doc['pubmed_id'] is not None else "_"
+    pmcid = doc['pmcid'] if doc['pmcid'] is not None else "_"
+    scopus_eid = doc['scopus_eid'] if doc['scopus_eid'] is not None else "_"
+    try:
+        matching_doc = EntriesDocument.objects(Q(doi=doi) | Q(pubmed_id=pubmed_id) | Q(pmcid=pmcid) | Q(scopus_eid=scopus_eid)).no_cache().get()
+        return matching_doc
+    except DoesNotExist:
+        pass
+    return None
 
 # -*- coding: utf-8 -*-
 """
@@ -67,11 +84,7 @@ Created on Fri Apr  3 13:36:44 2020
 
 def add_pre_proof_and_clean(entry):
     if entry['title'] != None and 'Journal Pre-proof' in entry['title']:
-        entry['is_pre_proof'] = True
         entry['title'] = remove_pre_proof(entry['title'])
-
-    else:
-        entry['is_pre_proof'] = False
     return entry
 
 
@@ -115,10 +128,10 @@ def merge_documents(high_priority_doc, low_priority_doc):
         if k not in ['summary_human', 'keywords', 'keywords_ML', 'category_human', 'category_human']:
 
             # First fill in what we can from high_priority_doc
-            if k in high_priority_doc.keys() and high_priority_doc[k] is not None and high_priority_doc[k] not in ["",
+            if high_priority_doc[k] is not None and high_priority_doc[k] not in ["",
                                                                                                                    []]:
                 merged_doc[k] = high_priority_doc[k]
-            elif k in low_priority_doc.keys() and low_priority_doc[k] is not None and low_priority_doc[k] not in ["",
+            elif low_priority_doc[k] is not None and low_priority_doc[k] not in ["",
                                                                                                                   []]:
                 merged_doc[k] = low_priority_doc[k]
             else:
@@ -128,14 +141,13 @@ def merge_documents(high_priority_doc, low_priority_doc):
             # Now merge the annotation categories into lists
             merged_category = []
             for doc in [high_priority_doc, low_priority_doc]:
-                if k in doc.keys():
-                    if isinstance(doc[k], str):
-                        if not doc[k] in merged_category:
-                            merged_category.append(doc[k])
-                    elif isinstance(doc[k], list):
-                        for e in doc[k]:
-                            if not e in merged_category:
-                                merged_category.append(e)
+                if isinstance(doc[k], str):
+                    if not doc[k] in merged_category:
+                        merged_category.append(doc[k])
+                elif isinstance(doc[k], list):
+                    for e in doc[k]:
+                        if not e in merged_category:
+                            merged_category.append(e)
 
             merged_doc[k] = list(set([anno.strip() for anno in merged_category]))
 
@@ -150,7 +162,7 @@ def merge_documents(high_priority_doc, low_priority_doc):
     elsevier_preamble = "publicly funded repositories, such as the WHO COVID database with rights for unrestricted research re-use and analyses in any form or by any means with acknowledgement of the original source. These permissions are granted for free by Elsevier for as long as the COVID-19 resource centre remains active."
     preambles.append(elsevier_preamble)
 
-    if 'abstract' in merged_doc.keys() and merged_doc['abstract'] is not None:
+    if merged_doc['abstract'] is not None:
         if isinstance(merged_doc['abstract'], list):
             merged_doc['abstract'] = " ".join(merged_doc['abstract'])
 
@@ -168,11 +180,11 @@ def merge_documents(high_priority_doc, low_priority_doc):
             except TypeError:
                 pass
 
-    if 'title' in merged_doc.keys() and merged_doc['title'] is not None:
+    if merged_doc['title'] is not None:
         if isinstance(merged_doc['title'], list):
             merged_doc['title'] = " ".join(merged_doc['title'])
 
-    if 'journal' in merged_doc.keys() and merged_doc['journal'] is not None:
+    if merged_doc['journal'] is not None:
         if isinstance(merged_doc['journal'], list):
             merged_doc['journal'] = " ".join(merged_doc['journal'])
 
@@ -182,12 +194,12 @@ def merge_documents(high_priority_doc, low_priority_doc):
     return merged_doc
 
 parsed_collections = [
+    ElsevierDocument,
+    BiorxivDocument,
     GoogleFormSubmissionDocument,
     PHODocument,
     LitCovidCrossrefDocument,
     LitCovidPubmedDocument,
-    BiorxivDocument,
-    ElsevierDocument,
     CORD19Document,
 ]
 
@@ -200,13 +212,15 @@ def build_entries():
             doc['pmcid'],
             doc['scopus_eid'],
             ]
-            matching_doc = EntriesDocument.find_matching_doc(doc)
+            matching_doc = find_matching_doc(doc)
             if matching_doc:
+                print("match")
                 insert_doc = EntriesDocument(**merge_documents(matching_doc, doc))
             elif any([x is not None for x in id_fields]):
                 insert_doc = EntriesDocument(**{k:v for k,v in doc.to_mongo().items() if k in entries_keys})
             else:
                 insert_doc = None
             if insert_doc:
-                insert_doc.source_documents = insert_doc.source_documents.append(doc)
+                insert_doc.source_documents.append(doc)
+                insert_doc._bt = datetime.now()
                 insert_doc.save()
