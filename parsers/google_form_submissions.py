@@ -6,7 +6,7 @@ from utils import clean_title, find_cited_by, find_references, find_pmcid_and_pu
 from pprint import PrettyPrinter
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 
-latest_version = 1
+latest_version = 2
 
 class GoogleFormSubmissionDocument(VespaDocument):
     meta = {"collection": "google_form_submissions_parsed_vespa",
@@ -29,8 +29,9 @@ class GoogleSubmissionParser(Parser):
 
     def _parse_title(self, doc):
         """ Returns the title of a document as a <class 'str'>"""
-        if doc['title'][0]:
-            return doc['title'][0]
+        if 'title' in doc.keys() and len(doc['title']) > 0:
+            if doc['title'][0]:
+                return doc['title'][0]
         return None
 
     def _parse_authors(self, doc):
@@ -204,7 +205,7 @@ class GoogleSubmissionParser(Parser):
     def _parse_document_type(self, doc):
         """ Returns the document type of a document as a <class 'str'>.
         e.g. 'paper', 'clinical_trial', 'patent', 'news'. """
-        return 'paper' if self._parse_doi(doc) is not None else None
+        return 'paper' if self._parse_doi(doc) is not None else ''
 
     def _preprocess(self, doc):
         """
