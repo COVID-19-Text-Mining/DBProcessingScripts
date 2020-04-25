@@ -69,10 +69,12 @@ def find_matching_doc(doc):
     scopus_eid = doc['scopus_eid'] if doc['scopus_eid'] is not None else "_"
     try:
         matching_doc = EntriesDocument.objects(Q(doi=doi) | Q(pubmed_id=pubmed_id) | Q(pmcid=pmcid) | Q(scopus_eid=scopus_eid)).no_cache().get()
-        return matching_doc
+        return [matching_doc]
     except DoesNotExist:
         pass
-    return None
+    except MultipleObjectsReturned:
+        return [d for d in EntriesDocument.objects(Q(doi=doi) | Q(pubmed_id=pubmed_id) | Q(pmcid=pmcid) | Q(scopus_eid=scopus_eid)).no_cache()]
+    return []
 
 # -*- coding: utf-8 -*-
 """
@@ -217,8 +219,13 @@ def build_entries():
             doc['scopus_eid'],
             ]
             matching_doc = find_matching_doc(doc)
-            if matching_doc:
+            if len(matching_doc) == 1:
                 insert_doc = EntriesDocument(**merge_documents(matching_doc, doc))
+            elif len(matching_doc) > 1:
+                insert_doc = merge_documents(matching_doc[0], doc)
+                for d in matching_doc[1:]:
+                    insert_doc = merge_documents(insert_doc, d)
+                insert_doc = EntriesDocument(**insert_doc)                
             elif any([x is not None for x in id_fields]):
                 insert_doc = EntriesDocument(**{k:v for k,v in doc.to_mongo().items() if k in entries_keys})
             else:
