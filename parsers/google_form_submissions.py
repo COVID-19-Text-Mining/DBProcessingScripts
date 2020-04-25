@@ -6,7 +6,7 @@ from utils import clean_title, find_cited_by, find_references, find_pmcid_and_pu
 from pprint import PrettyPrinter
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 
-latest_version = 2
+latest_version = 3
 
 class GoogleFormSubmissionDocument(VespaDocument):
     meta = {"collection": "google_form_submissions_parsed_vespa",
@@ -79,7 +79,7 @@ class GoogleSubmissionParser(Parser):
         """ Returns the publication_date of a document as a <class 'datetime.datetime'>"""
         if 'publication_date' in doc.keys():
             return doc['publication_date']
-        return datetime(year=1, month=1, day=1)
+        return doc['last_updated']
 
     def _parse_has_year(self, doc):
         """ Returns a <class 'bool'> specifying whether a document's year can be trusted."""
