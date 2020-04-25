@@ -59,7 +59,7 @@ class EntriesDocument(VespaDocument):
     source_documents = ListField(GenericReferenceField(), required=True)
     embeddings = DictField(default={})
 
-entries_keys = [k for k in EntriesDocument._fields.keys() if k[0] != "_"]
+entries_keys = [k for k in EntriesDocument._fields.keys() if (k[0] != "_" and k not in ["source_documents", "embeddings"])]
 
 def find_matching_doc(doc):
     #This could definitely be better but I can't figure out how to mangle mongoengine search syntax in the right way
