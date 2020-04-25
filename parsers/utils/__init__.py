@@ -75,6 +75,9 @@ def find_pmcid_and_pubmed_id(doi):
     Returns None for either id if not available. Returns None for both ids if doi
     is None or request fails.
     """
+    if doi is None:
+        return {'pmcid' : None, 'pubmed_id' : None}
+    
     session = requests.Session()
     try:
         doi2otherid_url = 'https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/?ids=%s' % doi
