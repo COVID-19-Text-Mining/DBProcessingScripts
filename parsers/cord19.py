@@ -7,7 +7,7 @@ from utils import clean_title, clean_abstract, find_cited_by, find_references
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField, GenericReferenceField
 from collections import defaultdict
 
-latest_version = 1
+latest_version = 2
 
 class CORD19Document(VespaDocument):
     meta = {"collection": "CORD_parsed_vespa",
