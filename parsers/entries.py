@@ -11,7 +11,7 @@ from litcovid import LitCovidCrossrefDocument, LitCovidPubmedDocument
 from biorxiv import BiorxivDocument
 from cord19 import CORD19Document
 from pho import PHODocument
-from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictField
+from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictField, MultipleObjectsReturned
 
 class EntriesDocument(VespaDocument):
 
