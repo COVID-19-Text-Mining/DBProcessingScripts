@@ -162,7 +162,7 @@ class CORD19Parser(Parser):
         """ Returns the publication_date of a document as a <class 'datetime.datetime'>"""
 
         if "crossref_raw_result" in doc:
-            return self.parse_date_parts(doc).get("publication_date", datetime(year=1,month=1,day=1))
+            return self.parse_date_parts(doc).get("publication_date", doc['last_updated'])
         elif "csv_raw_result" in doc:
             try:
                 date = datetime.strptime(doc['csv_raw_result']['publish_time'],
@@ -180,9 +180,9 @@ class CORD19Parser(Parser):
                             date = datetime.strptime(
                                 doc['csv_raw_result']['publish_time'], '%Y')
                         except:
-                            date = datetime(year=1, month=1, day=1)
+                            date = doc['last_updated']
         else:
-            date = datetime(year=1,month=1,day=1)
+            date = doc['last_updated']
         return date
 
     def _parse_has_year(self, doc):

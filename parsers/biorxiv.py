@@ -9,7 +9,7 @@ from io import BytesIO
 from pdf_extractor.paragraphs import extract_paragraphs_pdf
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 
-latest_version = 2
+latest_version = 3
 
 class BiorxivDocument(VespaDocument):
     meta = {"collection": "biorxiv_parsed_vespa",
@@ -72,7 +72,7 @@ class BiorxivParser(Parser):
 
     def _parse_publication_date(self, doc):
         """ Returns the publication_date of a document as a <class 'datetime.datetime'>"""
-        return doc.get("Publication_Date", None)
+        return doc.get("Publication_Date", doc.get('last_updated', datetime.now()))
 
     def _parse_has_year(self, doc):
         """ Returns a <class 'bool'> specifying whether a document's year can be trusted."""

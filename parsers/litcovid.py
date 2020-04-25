@@ -8,7 +8,7 @@ import xml.etree.ElementTree as ET
 from lxml import etree
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 
-latest_version = 1
+latest_version = 2
 
 class LitCovidCrossrefDocument(VespaDocument):
     meta = {"collection": "Litcovid_crossref_parsed_vespa",
@@ -156,7 +156,7 @@ class LitCovidParser(Parser):
             else:
                 datestring = "{0}-{1}-{2}".format(date[0][0], date[0][1], date[0][2])
                 return datetime.strptime(datestring, '%Y-%m-%d')
-        return datetime(year=1,month=1,day=1)
+        return doc['last_updated']
 
     def _parse_has_year(self, doc):
         """ Returns a <class 'bool'> specifying whether a document's year can be trusted."""
