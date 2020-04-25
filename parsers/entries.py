@@ -220,7 +220,7 @@ def build_entries():
             ]
             matching_doc = find_matching_doc(doc)
             if len(matching_doc) == 1:
-                insert_doc = EntriesDocument(**merge_documents(matching_doc, doc))
+                insert_doc = EntriesDocument(**merge_documents(matching_doc[0], doc))
             elif len(matching_doc) > 1:
                 insert_doc = merge_documents(matching_doc[0], doc)
                 for d in matching_doc[1:]:
