@@ -154,15 +154,15 @@ class GoogleSubmissionParser(Parser):
 
     def _parse_category_human(self, doc):
         """ Returns the category_human of a document as a <class 'list'> of <class 'str'>"""
-        return None
+        return doc['category_human']
 
     def _parse_keywords(self, doc):
         """ Returns the keywords for a document from original source as a a <class 'list'> of <class 'str'>"""
-        return None
+        return doc['keywords']
 
     def _parse_summary_human(self, doc):
         """ Returns the human-written summary of a document as a <class 'list'> of <class 'str'>"""
-        return None
+        return [doc['summary_human']]
 
     def _parse_is_preprint(self, doc):
         """ Returns a <class 'bool'> specifying whether the document is a preprint.
