@@ -42,7 +42,15 @@ def parse_document(document):
 
     if parsed_document is None or document.last_updated > parsed_document._bt or parsed_document.version < parsed_document.latest_version:
         # print(document)
-        parsed_document = document.parse()
+        print(parsed_document)
+        if parsed_document is None:
+           parsed_document = document.parse()
+        else:
+            print("MATCH!"+str(parsed_document.version))
+            new_doc = document.parse()
+            for field in new_doc._fields.keys():
+                if field != "_id":
+                    parse_document[field] = new_doc[field]
         document.parsed_document = parsed_document
         # print(parsed_document)
         parsed_document.save()
@@ -58,12 +66,12 @@ def grouper(n, iterable):
 
 def parse_documents(documents):
     init_mongoengine()
-    print("parsing")
+    # print("parsing")
     for document in documents:
         parse_document(document)
 
 
-with Parallel(n_jobs=32) as parallel:
-    parallel(delayed(parse_documents)(document) for collection in unparsed_collection_list for document in grouper(100, collection.objects))
+with Parallel(n_jobs=1) as parallel:
+    parallel(delayed(parse_documents)(document) for collection in unparsed_collection_list for document in grouper(500, collection.objects))
 
 build_entries()
