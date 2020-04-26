@@ -201,8 +201,8 @@ def merge_documents(high_priority_doc, low_priority_doc):
     merged_doc['is_covid19'] = high_priority_doc['is_covid19'] or low_priority_doc['is_covid19']
     if merged_doc['authors'] is not None:
         for author in merged_doc['authors']:
-            if author['name'] is None:
-                name = "{}{}{}".format(author['first_name'] if author['first_name'] is not None else "", " " + author['middle_name'] if author['midddle_name'] is not None else "", " " + author['last_name'] if author['last_name'] is not None else "",)
+            if  not 'name' in author.keys():
+                name = "{}{}{}".format(author['first_name'] if 'first_name' in author.keys() else "", " " + author['middle_name'] if 'middle_name' in author.keys() else "", " " + author['last_name'] if 'last_name' in author.keys() else "",)
                 author['name'] = name
     return merged_doc
 
