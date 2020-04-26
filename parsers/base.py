@@ -125,7 +125,9 @@ class VespaDocument(Document):
         if not all(ids_not_none) and any(ids_not_none):
             present_id = next(x for x in id_fields if x is not None)
             remaining_ids = find_remaining_ids(present_id)
-            self.update(**{"set__{}".format(k):v for k,v in remaining_ids.items() if v is not None})
+            for k,v in remaining_ids.items():
+                if v is not None:
+                    self[k] = v
 
 
 class Parser(ABC):
