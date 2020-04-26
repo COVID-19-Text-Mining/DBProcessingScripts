@@ -48,12 +48,12 @@ def parse_document(document):
         if parsed_document is None:
            parsed_document = document.parse()
         else:
-            print("MATCH!"+str(parsed_document.version))
             new_doc = document.parse()
             parsed_document.delete()
             parsed_document = new_doc
         document.parsed_document = parsed_document
         # print(parsed_document)
+        parsed_document.find_missing_ids()
         parsed_document.save()
         document.save()
 

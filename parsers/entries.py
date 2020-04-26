@@ -193,6 +193,7 @@ def merge_documents(high_priority_doc, low_priority_doc):
     merged_doc = clean_data(merged_doc)
     if merged_doc['abstract'] is not None:
         merged_doc['abstract'] = merged_doc['abstract'].strip()
+
     return merged_doc
 
 parsed_collections = [
