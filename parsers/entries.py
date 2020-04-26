@@ -13,7 +13,7 @@ from cord19 import CORD19Document
 from pho import PHODocument
 from dimensions import DimensionsDocument
 from lens_patents import LensPatentDocument
-from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictField, MultipleObjectsReturned, FloatField
+from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictField, MultipleObjectsReturned, FloatField, IntField
 
 class EntriesDocument(VespaDocument):
 
@@ -61,8 +61,9 @@ class EntriesDocument(VespaDocument):
     source_documents = ListField(GenericReferenceField(), required=True)
     embeddings = DictField(default={})
     is_covid19_ML = FloatField()
+    integer_id = IntField()
 
-entries_keys = [k for k in EntriesDocument._fields.keys() if (k[0] != "_" and k not in ["source_documents", "embeddings", "is_covid19_ML"])]
+entries_keys = [k for k in EntriesDocument._fields.keys() if (k[0] != "_" and k not in ["source_documents", "embeddings", "is_covid19_ML", "integer_id"])]
 
 def find_matching_doc(doc):
     #This could definitely be better but I can't figure out how to mangle mongoengine search syntax in the right way
@@ -197,6 +198,7 @@ def merge_documents(high_priority_doc, low_priority_doc):
     if merged_doc['abstract'] is not None:
         merged_doc['abstract'] = merged_doc['abstract'].strip()
 
+    merged_doc['is_covid19'] = high_priority_doc['is_covid19'] or low_priority_doc['is_covid19']
     return merged_doc
 
 parsed_collections = [
@@ -229,10 +231,13 @@ def build_entries():
             if len(matching_doc) == 1:
                 insert_doc = EntriesDocument(**merge_documents(doc, matching_doc[0]))
                 insert_doc.id = matching_doc[0].id
+                insert_doc.source_documents = matching_doc[0].source_documents
             elif len(matching_doc) > 1:
                 insert_doc = merge_documents(matching_doc[0], doc)
+                insert_doc.source_documents = matching_doc[0].source_documents
                 for d in matching_doc[1:]:
                     insert_doc = merge_documents(insert_doc, d)
+                    insert_doc.source_documents = insert_doc.source_documents + d.source_documents
                     d.delete()
                 insert_doc = EntriesDocument(**insert_doc)
                 insert_doc.id = matching_doc[0].id                
@@ -243,4 +248,5 @@ def build_entries():
             if insert_doc:
                 insert_doc.source_documents.append(doc)
                 insert_doc._bt = datetime.now()
+                insert_doc.integer_id = int(insert_doc.id,16)
                 insert_doc.save()
