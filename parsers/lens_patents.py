@@ -15,7 +15,7 @@ class LensPatentDocument(VespaDocument):
     }
 
     latest_version = latest_version
-    unparsed_document = ReferenceField('UnparsedLensPatentDocument', required=True)
+    unparsed_document = ReferenceField('UnparsedLensDocument', required=True)
 
 class LensPatentParser(Parser):
     """
