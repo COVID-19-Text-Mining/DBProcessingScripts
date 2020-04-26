@@ -65,6 +65,8 @@ class VespaDocument(Document):
     title = StringField(default=None)
     authors = ListField(EmbeddedDocumentField(Author), default=[])
 
+    document_type = StringField(default=None)
+    
     journal = StringField(default=None)
     journal_short = StringField(default=None)
     publication_date = DateTimeField(required=True)

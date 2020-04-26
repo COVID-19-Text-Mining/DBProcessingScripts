@@ -1,5 +1,6 @@
 import requests
 import xml.etree.ElementTree as ET
+import json
 
 
 def clean_title(title):
@@ -12,6 +13,7 @@ def clean_title(title):
     title = title.strip()
     return title
 
+
 def clean_abstract(abstract):
     if not abstract:
         return abstract
@@ -19,6 +21,7 @@ def clean_abstract(abstract):
     if 'a b s t r a c t' in abstract:
         abstract = abstract.split('a b s t r a c t')[1]
     return abstract
+
 
 def find_references(doi):
     """ Returns the references of a document as a <class 'list'> of <class 'dict'>.
@@ -29,11 +32,16 @@ def find_references(doi):
 
     references = []
     if doi:
-        response = requests.get(f"https://opencitations.net/index/api/v1/references/{doi}")
+        headers = {
+            'User-Agent': 'COVIDScholar Parsers',
+            'From': 'jdagdelen@lbl.gov'  # This is another valid field
+        }
+        response = requests.get(f"https://opencitations.net/index/api/v1/references/{doi}", headers=headers)
         if response:
             try:
                 response = response.json()
-                references = [{"doi": r['cited'].replace("coci =>", ""), "text": r['cited'].replace("coci =>", "")} for r in response]
+                references = [{"doi": r['cited'].replace("coci =>", ""), "text": r['cited'].replace("coci =>", "")} for
+                              r in response]
             except json.decoder.JSONDecodeError:
                 pass
 
@@ -52,19 +60,24 @@ def find_cited_by(doi):
 
     citations = []
     if doi:
-        response = requests.get(f"https://opencitations.net/index/api/v1/citations/{doi}")
+        headers = {
+            'User-Agent': 'COVIDScholar Parsers',
+            'From': 'jdagdelen@lbl.gov'  # This is another valid field
+        }
+        response = requests.get(f"https://opencitations.net/index/api/v1/citations/{doi}", headers=headers)
         if response:
             try:
                 response = response.json()
-                citations = [{"doi": r['citing'].replace("coci =>", ""), "text": r['citing'].replace("coci =>", "")} for r in response]
+                citations = [{"doi": r['citing'].replace("coci =>", ""), "text": r['citing'].replace("coci =>", "")} for
+                             r in response]
             except json.decoder.JSONDecodeError:
                 pass
     if citations:
         return citations
     else:
         return None
-    
-    
+
+
 def find_remaining_ids(id):
     """ Returns dictionary containing remaining relevant ids corresponding to
     the input id. Just input doi, pmid, or pmcid; function will return all three.
@@ -79,9 +92,9 @@ def find_remaining_ids(id):
     """
 
     None_dict = {
-        'doi' : None,
-        'pmcid' : None,
-        'pubmed_id' : None
+        'doi': None,
+        'pmcid': None,
+        'pubmed_id': None
     }
     if id is None:
         return None_dict
