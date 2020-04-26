@@ -11,7 +11,7 @@ from litcovid import LitCovidCrossrefDocument, LitCovidPubmedDocument
 from biorxiv import BiorxivDocument
 from cord19 import CORD19Document
 from pho import PHODocument
-from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictField, MultipleObjectsReturned
+from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictField, MultipleObjectsReturned, FloatField
 
 class EntriesDocument(VespaDocument):
 
@@ -58,8 +58,9 @@ class EntriesDocument(VespaDocument):
 
     source_documents = ListField(GenericReferenceField(), required=True)
     embeddings = DictField(default={})
+    is_covid19_ML = FloatField()
 
-entries_keys = [k for k in EntriesDocument._fields.keys() if (k[0] != "_" and k not in ["source_documents", "embeddings"])]
+entries_keys = [k for k in EntriesDocument._fields.keys() if (k[0] != "_" and k not in ["source_documents", "embeddings", "is_covid19_ML"])]
 
 def find_matching_doc(doc):
     #This could definitely be better but I can't figure out how to mangle mongoengine search syntax in the right way
@@ -223,10 +224,10 @@ def build_entries():
             matching_doc = find_matching_doc(doc)
             if len(matching_doc) == 1:
                 insert_doc = EntriesDocument(**merge_documents(doc, matching_doc[0]))
-                matching_doc[0].delete()
+                insert_doc.id = matching_doc[0].id
             elif len(matching_doc) > 1:
                 insert_doc = merge_documents(matching_doc[0], doc)
-                matching_doc[0].delete()
+                insert_doc['_id'] = matching_doc[0].id
                 for d in matching_doc[1:]:
                     insert_doc = merge_documents(insert_doc, d)
                     d.delete()
