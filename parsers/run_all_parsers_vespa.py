@@ -1,4 +1,4 @@
-from mongoengine import connect
+from mongoengine import connect, DoesNotExist
 from elsevier import UnparsedElsevierDocument
 from google_form_submissions import UnparsedGoogleFormSubmissionDocument
 from litcovid import UnparsedLitCovidCrossrefDocument, UnparsedLitCovidPubmedXMLDocument
@@ -43,7 +43,10 @@ unparsed_collection_list = [UnparsedDimensionsDataDocument,
 
 def parse_document(document):
 
-    parsed_document = document.parsed_document
+    try:
+        parsed_document = document.parsed_document
+    except DoesNotExist:
+        parsed_document = None
 
     if parsed_document is None or document.last_updated > parsed_document._bt or parsed_document.version < parsed_document.latest_version:
         if parsed_document is None:
