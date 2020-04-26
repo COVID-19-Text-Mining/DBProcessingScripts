@@ -266,9 +266,11 @@ class UnparsedDimensionsPubDocument(DynamicDocument):
         parsed_document = self.parser.parse(self.to_mongo())
         parsed_document['_bt'] = datetime.now()
         parsed_document['unparsed_document'] = self
-        if not isinstance(parsed_document, dict):
+        try:
+            return DimensionsDocument(**parsed_document)
+        except:
             print(parsed_document)
-        return DimensionsDocument(**parsed_document)
+            exit(1)
 
 class UnparsedDimensionsDataDocument(DynamicDocument):
     meta = {"collection": "Dimensions_datasets"
@@ -286,8 +288,7 @@ class UnparsedDimensionsDataDocument(DynamicDocument):
         parsed_document = self.parser.parse(self.to_mongo())
         parsed_document['_bt'] = datetime.now()
         parsed_document['unparsed_document'] = self
-        if not isinstance(parsed_document, dict):
-            print(parsed_document)
+        print(parsed_document)
         return DimensionsDocument(**parsed_document)
 
 class UnparsedDimensionsTrialDocument(DynamicDocument):
@@ -306,6 +307,5 @@ class UnparsedDimensionsTrialDocument(DynamicDocument):
         parsed_document = self.parser.parse(self.to_mongo())
         parsed_document['_bt'] = datetime.now()
         parsed_document['unparsed_document'] = self
-        if not isinstance(parsed_document, dict):
-            print(parsed_document)
+        print(parsed_document)
         return DimensionsDocument(**parsed_document)
