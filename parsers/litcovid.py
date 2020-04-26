@@ -2,17 +2,20 @@ from base import Parser, VespaDocument, indexes
 from datetime import datetime
 import json
 import requests
-from utils import clean_title, find_cited_by, find_references, find_pmcid_and_pubmed_id
+from utils import clean_title, find_cited_by, find_references, find_remaining_ids
 from pprint import PrettyPrinter
 import xml.etree.ElementTree as ET
 from lxml import etree
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField
+
+latest_version = 2
 
 class LitCovidCrossrefDocument(VespaDocument):
     meta = {"collection": "Litcovid_crossref_parsed_vespa",
             "indexes": indexes
     }
 
+    latest_version = latest_version
     unparsed_document = ReferenceField('UnparsedLitCovidCrossrefDocument', required=True)
 
 class LitCovidPubmedDocument(VespaDocument):
@@ -20,6 +23,7 @@ class LitCovidPubmedDocument(VespaDocument):
             "indexes": indexes
     }
 
+    latest_version = latest_version
     unparsed_document = ReferenceField('UnparsedLitCovidPubmedXMLDocument', required=True)
 
 class LitCovidParser(Parser):
@@ -152,7 +156,7 @@ class LitCovidParser(Parser):
             else:
                 datestring = "{0}-{1}-{2}".format(date[0][0], date[0][1], date[0][2])
                 return datetime.strptime(datestring, '%Y-%m-%d')
-        return datetime(year=1,month=1,day=1)
+        return doc['last_updated']
 
     def _parse_has_year(self, doc):
         """ Returns a <class 'bool'> specifying whether a document's year can be trusted."""
@@ -298,7 +302,7 @@ class LitCovidParser(Parser):
 
     def _parse_pmcid(self, doc):
         """ Returns the pmcid of a document as a <class 'str'>."""
-        return find_pmcid_and_pubmed_id(self._parse_doi(doc))['pmcid']
+        return find_remaining_ids(self._parse_doi(doc))['pmcid']
 
     def _parse_pubmed_id(self, doc):
         """ Returns the PubMed ID of a document as a <class 'str'>."""
@@ -308,7 +312,7 @@ class LitCovidParser(Parser):
             pmid = results[0]
             if pmid is not None:
                 return str(pmid)
-        return find_pmcid_and_pubmed_id(self._parse_doi(doc))['pubmed_id']
+        return find_remaining_ids(self._parse_doi(doc))['pubmed_id']
 
     def _parse_who_covidence(self, doc):
         """ Returns the who_covidence of a document as a <class 'str'>."""
@@ -316,7 +320,7 @@ class LitCovidParser(Parser):
 
     def _parse_version(self, doc):
         """ Returns the version of a document as a <class 'int'>."""
-        return 1
+        return latest_version
 
     def _parse_copyright(self, doc):
         """ Returns the copyright notice of a document as a <class 'str'>."""

@@ -6,12 +6,15 @@ import requests
 from utils import clean_title, find_cited_by, find_references
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 
+latest_version = 1
+
 class ElsevierDocument(VespaDocument):
 
     meta = {"collection": "Elsevier_parsed_vespa",
             "indexes": indexes
     }
 
+    latest_version = latest_version
     unparsed_document = ReferenceField('UnparsedElsevierDocument', required=True)
 
 class ElsevierParser(Parser):
@@ -181,7 +184,7 @@ class ElsevierParser(Parser):
 
     def _parse_version(self, doc):
         """ Returns the version of a document as a <class 'int'>."""
-        return 1
+        return latest_version
 
     def _parse_copyright(self, doc):
         """ Returns the copyright notice of a document as a <class 'str'>."""

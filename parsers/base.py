@@ -3,6 +3,7 @@ from mongoengine import (
     connect, Document, EmbeddedDocumentField,
     StringField, ListField,
     EmbeddedDocument, EmailField, ValidationError, DateTimeField, DynamicEmbeddedDocument, BooleanField, IntField)
+from utils import find_remaining_ids
 
 __all__ = [
     'Author', 'ExtendedParagraph', 'Reference', 'VespaDocument',
@@ -20,7 +21,7 @@ indexes = [
     'is_preprint', 'is_covid19',
     'cord_uid', 'pmcid', 'pubmed_id',
     'who_covidence', 'version', 'copyright',
-    'document_type'
+    'document_type', 'scopus_eid',
 ]
 
 class Author(EmbeddedDocument):
@@ -62,7 +63,7 @@ class VespaDocument(Document):
     doi = StringField(default=None)
 
     title = StringField(default=None)
-    authors = ListField(EmbeddedDocumentField(Author))
+    authors = ListField(EmbeddedDocumentField(Author), default=[])
 
     document_type = StringField(default=None)
     
@@ -74,17 +75,17 @@ class VespaDocument(Document):
     abstract = StringField(default=None)
 
     has_full_text = BooleanField(required=True)
-    body_text = ListField(EmbeddedDocumentField(ExtendedParagraph))
-    references = ListField(EmbeddedDocumentField(Reference))
+    body_text = ListField(EmbeddedDocumentField(ExtendedParagraph), default=[])
+    references = ListField(EmbeddedDocumentField(Reference), default=[])
 
-    cited_by = ListField(EmbeddedDocumentField(Reference))
+    cited_by = ListField(EmbeddedDocumentField(Reference), default=[])
 
     source_display = StringField(required=True)
     origin = StringField(required=True)
     document_type = StringField(required=True)
     link = StringField(required=True)
-    version = IntField()
-    copyright = StringField()
+    version = IntField(required=True)
+    copyright = StringField(default=None)
     last_updated = DateTimeField(required=True)
     _bt = DateTimeField(required=True)
 
@@ -96,27 +97,15 @@ class VespaDocument(Document):
     has_year = BooleanField(required=True)
     has_month = BooleanField(required=True)
     has_day = BooleanField(required=True)
-    is_preprint = BooleanField()
-    is_covid19 = BooleanField()
+    is_preprint = BooleanField(default=None)
+    is_covid19 = BooleanField(default=False)
 
     cord_uid = StringField(default=None)
     pmcid = StringField(default=None)
     pubmed_id = StringField(default=None)
-    issn = StringField()
-    scopus_eid = StringField()
+    issn = StringField(default=None)
+    scopus_eid = StringField(default=None)
 
-
-    # indexes = [
-    #         'doi', '#doi',
-    #         'journal', 'journal_short',
-    #         'publication_date',
-    #         'has_full_text',
-    #         'origin',
-    #         'last_updated',
-    #         'has_year', 'has_month', 'has_day',
-    #         'is_preprint', 'is_covid19',
-    #         'cord_uid', 'pmcid', 'pubmed_id'
-    #     ]
 
     meta = {"collection": "",
         "indexes": [],
@@ -130,6 +119,18 @@ class VespaDocument(Document):
     @property
     def parser(self):
         raise NotImplementedError
+
+    def find_missing_ids(self):
+        id_fields = [self.to_mongo().get(x, None) for x in ['doi', 'pubmed_id', 'pmcid']]
+        ids_not_none = [x is not None for x in id_fields] 
+        #We need at least one of the id fields complete in order to find the others
+        if not all(ids_not_none) and any(ids_not_none):
+            present_id = next(x for x in id_fields if x is not None)
+            remaining_ids = find_remaining_ids(present_id)
+            for k,v in remaining_ids.items():
+                if v is not None:
+                    self[k] = v
+
 
 class Parser(ABC):
     """
@@ -164,7 +165,7 @@ class Parser(ABC):
         "has_year",
         "has_month",
         "has_day",
-        "is_pre_proof",
+        "is_preprint",
         "is_covid19",
         "license",
         "cord_uid",
