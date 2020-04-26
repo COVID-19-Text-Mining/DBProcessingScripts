@@ -76,7 +76,7 @@ def parse_documents(documents):
     print('parsed')
 
 
-with Parallel(n_jobs=32) as parallel:
-    parallel(delayed(parse_documents)(document) for collection in unparsed_collection_list for document in grouper(500, collection.objects))
+#with Parallel(n_jobs=32) as parallel:
+#    parallel(delayed(parse_documents)(document) for collection in unparsed_collection_list for document in grouper(500, collection.objects))
 
 build_entries()

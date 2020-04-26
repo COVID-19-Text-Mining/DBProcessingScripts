@@ -147,10 +147,10 @@ def merge_documents(high_priority_doc, low_priority_doc):
             # Now merge the annotation categories into lists
             merged_category = []
             for doc in [high_priority_doc, low_priority_doc]:
-                if isinstance(doc[k], str):
+                if isinstance(doc.get(k, None), str):
                     if not doc[k] in merged_category:
                         merged_category.append(doc[k])
-                elif isinstance(doc[k], list):
+                elif isinstance(doc.get(k,None), list):
                     for e in doc[k]:
                         if not e in merged_category:
                             merged_category.append(e)
@@ -247,7 +247,7 @@ def build_entries():
                 insert_doc = EntriesDocument(**insert_doc)
                 insert_doc.id = matching_doc[0].id                
             elif any([x is not None for x in id_fields]):
-                insert_doc = EntriesDocument(**merge_documents(doc.to_mongo(), {}))
+                insert_doc = EntriesDocument(**merge_documents(doc.to_mongo(), {'is_covid19': False}))
             else:
                 insert_doc = None
             if insert_doc:
