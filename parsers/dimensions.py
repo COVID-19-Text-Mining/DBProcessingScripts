@@ -302,4 +302,6 @@ class UnparsedDimensionsTrialDocument(DynamicDocument):
         parsed_document = self.parser.parse(self.to_mongo())
         parsed_document['_bt'] = datetime.now()
         parsed_document['unparsed_document'] = self
+        if not isinstance(parsed_document, dict):
+            print(parsed_document)
         return DimensionsDocument(**parsed_document)
