@@ -42,7 +42,7 @@ def init_mongoengine():
 init_mongoengine()
 
 
-entries = EntriesDocument.objects(Q(keywords__ne=[]))
+entries = EntriesDocument.objects(Q(keywords=[]))
 # In[48]:
 print(len(entries))
 
@@ -93,7 +93,11 @@ for entry in entries:
         except (KeyError, TypeError):
             pass
 
+
         entry.is_covid19 = is_covid19 or entry.is_covid19
+
+        if (entry_dict['publication_date'] < datetime.datetime(year=2019,month=1,day=1) and entry_dict['has_year']):
+            entry.is_covid19 = False
 
     # print(entry.is_covid19)
     if 'is_covid19_ML' in entry_dict.keys():
