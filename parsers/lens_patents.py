@@ -193,7 +193,7 @@ class UnparsedLensDocument(DynamicDocument):
 
     parsed_document = ReferenceField(LensPatentDocument, required=False)
 
-    last_updated = DateTimeField(db_field="last_updated")
+    last_updated = DateTimeField(db_field="Last_Updated")
 
     def parse(self):
         parsed_document = self.parser.parse(self.to_mongo())
