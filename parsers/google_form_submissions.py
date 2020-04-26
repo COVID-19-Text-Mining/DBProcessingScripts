@@ -2,7 +2,7 @@ from base import Parser, VespaDocument, indexes
 import json
 from datetime import datetime
 import requests
-from utils import clean_title, find_cited_by, find_references, find_pmcid_and_pubmed_id
+from utils import clean_title, find_cited_by, find_references, find_remaining_ids
 from pprint import PrettyPrinter
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 
@@ -186,11 +186,11 @@ class GoogleSubmissionParser(Parser):
 
     def _parse_pmcid(self, doc):
         """ Returns the pmcid of a document as a <class 'str'>."""
-        return find_pmcid_and_pubmed_id(self._parse_doi(doc))['pmcid']
+        return find_remaining_ids(self._parse_doi(doc))['pmcid']
 
     def _parse_pubmed_id(self, doc):
         """ Returns the PubMed ID of a document as a <class 'str'>."""
-        return find_pmcid_and_pubmed_id(self._parse_doi(doc))['pubmed_id']
+        return find_remaining_ids(self._parse_doi(doc))['pubmed_id']
 
     def _parse_who_covidence(self, doc):
         """ Returns the who_covidence of a document as a <class 'str'>."""
