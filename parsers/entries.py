@@ -67,17 +67,17 @@ entries_keys = [k for k in EntriesDocument._fields.keys() if (k[0] != "_")]
 
 def find_matching_doc(doc):
     #This could definitely be better but I can't figure out how to mangle mongoengine search syntax in the right way
-    doi = doc['doi'] if doc['doi'] is not None else "_"
-    pubmed_id = doc['pubmed_id'] if doc['pubmed_id'] is not None else "_"
-    pmcid = doc['pmcid'] if doc['pmcid'] is not None else "_"
-    scopus_eid = doc['scopus_eid'] if doc['scopus_eid'] is not None else "_"
+    doi = doc['doi'] if doc['doi'] is not None else "__"
+    pubmed_id = doc['pubmed_id'] if doc['pubmed_id'] is not None else "__"
+    pmcid = doc['pmcid'] if doc['pmcid'] is not None else "__"
+    scopus_eid = doc['scopus_eid'] if doc['scopus_eid'] is not None else "__"
     try:
-        matching_doc = EntriesDocument.objects(Q(doi=doi) | Q(pubmed_id=pubmed_id) | Q(pmcid=pmcid) | Q(scopus_eid=scopus_eid)).no_cache().get()
+        matching_doc = EntriesDocument.objects(Q(doi__istartswith=doi) | Q(pubmed_id=pubmed_id) | Q(pmcid=pmcid) | Q(scopus_eid=scopus_eid)).no_cache().get()
         return [matching_doc]
     except DoesNotExist:
         pass
     except MultipleObjectsReturned:
-        return [d for d in EntriesDocument.objects(Q(doi=doi) | Q(pubmed_id=pubmed_id) | Q(pmcid=pmcid) | Q(scopus_eid=scopus_eid)).no_cache()]
+        return [d for d in EntriesDocument.objects(Q(doi__istartswith=doi) | Q(pubmed_id=pubmed_id) | Q(pmcid=pmcid) | Q(scopus_eid=scopus_eid)).no_cache()]
     return []
 
 # -*- coding: utf-8 -*-
