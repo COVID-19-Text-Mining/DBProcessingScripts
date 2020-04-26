@@ -231,11 +231,11 @@ def build_entries():
                 insert_doc.id = matching_doc[0].id
             elif len(matching_doc) > 1:
                 insert_doc = merge_documents(matching_doc[0], doc)
-                insert_doc['_id'] = matching_doc[0].id
                 for d in matching_doc[1:]:
                     insert_doc = merge_documents(insert_doc, d)
                     d.delete()
-                insert_doc = EntriesDocument(**insert_doc)                
+                insert_doc = EntriesDocument(**insert_doc)
+                insert_doc.id = matching_doc[0].id                
             elif any([x is not None for x in id_fields]):
                 insert_doc = EntriesDocument(**{k:v for k,v in doc.to_mongo().items() if k in entries_keys})
             else:
