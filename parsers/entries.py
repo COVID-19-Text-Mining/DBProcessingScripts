@@ -199,6 +199,10 @@ def merge_documents(high_priority_doc, low_priority_doc):
         merged_doc['abstract'] = merged_doc['abstract'].strip()
 
     merged_doc['is_covid19'] = high_priority_doc['is_covid19'] or low_priority_doc['is_covid19']
+    for author in merged_doc['authors']:
+        if author['name'] is None:
+            name = "{}{}{}".format(author['first_name'] if author['first_name'] is not None else "", " " + author['middle_name'] if author['midddle_name'] is not None else "", " " + author['last_name'] if author['last_name'] is not None else "",)
+            author['name'] = name
     return merged_doc
 
 parsed_collections = [
@@ -242,7 +246,7 @@ def build_entries():
                 insert_doc = EntriesDocument(**insert_doc)
                 insert_doc.id = matching_doc[0].id                
             elif any([x is not None for x in id_fields]):
-                insert_doc = EntriesDocument(**{k:v for k,v in doc.to_mongo().items() if k in entries_keys})
+                insert_doc = EntriesDocument(**merge_documents(doc.to_mongo(), {}))
             else:
                 insert_doc = None
             if insert_doc:
