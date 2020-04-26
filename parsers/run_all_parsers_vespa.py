@@ -5,6 +5,8 @@ from litcovid import UnparsedLitCovidCrossrefDocument, UnparsedLitCovidPubmedXML
 from biorxiv import UnparsedBiorxivDocument
 from cord19 import UnparsedCORD19CustomDocument, UnparsedCORD19CommDocument, UnparsedCORD19NoncommDocument, UnparsedCORD19XrxivDocument
 from pho import UnparsedPHODocument
+from dimensions import UnparsedDimensionsDataDocument, UnparsedDimensionsPubDocument, UnparsedDimensionsTrialDocument
+from lens_patents import UnparsedLensDocument
 from datetime import datetime
 from joblib import Parallel, delayed
 import os
@@ -23,7 +25,10 @@ def init_mongoengine():
 
 init_mongoengine()
 
-unparsed_collection_list = [
+unparsed_collection_list = [UnparsedDimensionsDataDocument,
+     UnparsedDimensionsPubDocument,
+     UnparsedDimensionsTrialDocument,
+     UnparsedLensDocument,
      UnparsedGoogleFormSubmissionDocument, 
      UnparsedPHODocument,
      UnparsedElsevierDocument,
@@ -40,11 +45,7 @@ def parse_document(document):
 
     parsed_document = document.parsed_document
 
-    if parsed_document.version == 1 and parsed_document.origin == "Scraper_connect_biorxiv_org":
-        print((parsed_document.origin, parsed_document.version))
     if parsed_document is None or document.last_updated > parsed_document._bt or parsed_document.version < parsed_document.latest_version:
-        # print(document)
-        print(parsed_document)
         if parsed_document is None:
            parsed_document = document.parse()
         else:
@@ -52,7 +53,6 @@ def parse_document(document):
             parsed_document.delete()
             parsed_document = new_doc
         document.parsed_document = parsed_document
-        # print(parsed_document)
         parsed_document.find_missing_ids()
         parsed_document.save()
         document.save()
@@ -70,9 +70,10 @@ def parse_documents(documents):
     # print("parsing")
     for document in documents:
         parse_document(document)
+    print('parsed')
 
 
-with Parallel(n_jobs=1) as parallel:
+with Parallel(n_jobs=32) as parallel:
     parallel(delayed(parse_documents)(document) for collection in unparsed_collection_list for document in grouper(500, collection.objects))
 
 build_entries()
