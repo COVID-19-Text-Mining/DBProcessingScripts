@@ -61,7 +61,6 @@ class EntriesDocument(VespaDocument):
     source_documents = ListField(GenericReferenceField(), required=True)
     embeddings = DictField(default={})
     is_covid19_ML = FloatField()
-    integer_id = StringField()
 
 entries_keys = [k for k in EntriesDocument._fields.keys() if (k[0] != "_")]
 
@@ -253,6 +252,4 @@ def build_entries():
             if insert_doc:
                 insert_doc.source_documents.append(doc)
                 insert_doc._bt = datetime.now()
-                insert_doc.save()
-                insert_doc.integer_id = str(int(str(insert_doc.id),16))
                 insert_doc.save()
