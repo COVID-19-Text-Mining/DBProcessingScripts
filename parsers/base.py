@@ -3,6 +3,7 @@ from mongoengine import (
     connect, Document, EmbeddedDocumentField,
     StringField, ListField,
     EmbeddedDocument, EmailField, ValidationError, DateTimeField, DynamicEmbeddedDocument, BooleanField, IntField)
+from utils import find_remaining_ids
 
 __all__ = [
     'Author', 'ExtendedParagraph', 'Reference', 'VespaDocument',
@@ -116,6 +117,16 @@ class VespaDocument(Document):
     @property
     def parser(self):
         raise NotImplementedError
+
+    def find_missing_ids(self):
+        id_fields = [self.to_mongo()[x] for x in ['doi', 'pubmed_id', 'pmcid']]
+        ids_not_none = [x is not None for x in id_fields] 
+        #We need at least one of the id fields complete in order to find the others
+        if not all(ids_not_none) and any(ids_not_none):
+            present_id = next(x for x in id_fields if x is not None)
+            remaining_ids = find_remaining_ids(present_id)
+            self.update(**{"set__{}".format(k):v for k,v in remaining_ids.items() if v is not None})
+
 
 class Parser(ABC):
     """
