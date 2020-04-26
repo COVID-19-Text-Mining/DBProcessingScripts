@@ -296,7 +296,7 @@ class UnparsedDimensionsTrialDocument(DynamicDocument):
 
     parsed_document = ReferenceField(DimensionsDocument, required=False)
 
-    last_updated = DateTimeField(db_field="last_updated")
+    last_updated = DateTimeField(db_field="date_added")
 
     def parse(self):
         parsed_document = self.parser.parse(self.to_mongo())
