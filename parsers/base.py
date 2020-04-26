@@ -119,7 +119,7 @@ class VespaDocument(Document):
         raise NotImplementedError
 
     def find_missing_ids(self):
-        id_fields = [self.to_mongo()[x] for x in ['doi', 'pubmed_id', 'pmcid']]
+        id_fields = [self.to_mongo().get(x, None) for x in ['doi', 'pubmed_id', 'pmcid']]
         ids_not_none = [x is not None for x in id_fields] 
         #We need at least one of the id fields complete in order to find the others
         if not all(ids_not_none) and any(ids_not_none):
