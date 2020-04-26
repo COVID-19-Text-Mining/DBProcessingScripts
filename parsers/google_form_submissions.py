@@ -30,7 +30,7 @@ class GoogleSubmissionParser(Parser):
     def _parse_title(self, doc):
         """ Returns the title of a document as a <class 'str'>"""
         if 'title' in doc.keys() and len(doc['title']) > 0:
-            if isisnstance(doc['title'], list):
+            if isinstance(doc['title'], list):
                 return doc['title'][0]
             elif isinstance(doc['title'], str):
                 return doc['title']
