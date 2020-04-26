@@ -199,10 +199,11 @@ def merge_documents(high_priority_doc, low_priority_doc):
         merged_doc['abstract'] = merged_doc['abstract'].strip()
 
     merged_doc['is_covid19'] = high_priority_doc['is_covid19'] or low_priority_doc['is_covid19']
-    for author in merged_doc['authors']:
-        if author['name'] is None:
-            name = "{}{}{}".format(author['first_name'] if author['first_name'] is not None else "", " " + author['middle_name'] if author['midddle_name'] is not None else "", " " + author['last_name'] if author['last_name'] is not None else "",)
-            author['name'] = name
+    if merged_doc['authors'] is not None:
+        for author in merged_doc['authors']:
+            if author['name'] is None:
+                name = "{}{}{}".format(author['first_name'] if author['first_name'] is not None else "", " " + author['middle_name'] if author['midddle_name'] is not None else "", " " + author['last_name'] if author['last_name'] is not None else "",)
+                author['name'] = name
     return merged_doc
 
 parsed_collections = [
