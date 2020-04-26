@@ -3,7 +3,7 @@ import json
 import re
 from datetime import datetime
 import requests
-from utils import clean_title, find_cited_by, find_references, find_pmcid_and_pubmed_id
+from utils import clean_title, find_cited_by, find_references, find_remaining_ids
 from mongoengine import DynamicDocument, GenericReferenceField, DateTimeField, ReferenceField
 
 latest_version = 1
@@ -81,7 +81,7 @@ class DimensionsParser(Parser):
             return datetime.strptime(doc['publication_date'], '%Y-%m-%d')
         elif 'publication_year' in doc.keys():
             return datetime.strptime(str(doc['publication_year']), '%Y')
-        return None
+        return doc['last_updated']
 
     def _parse_has_year(self, doc):
         """ Returns a <class 'bool'> specifying whether a document's year can be trusted."""
@@ -202,14 +202,14 @@ class DimensionsParser(Parser):
         if 'pmcid' in doc.keys():
             if doc['pmcid'] != '':
                 return doc['pmcid']
-        return find_pmcid_and_pubmed_id(self._parse_doi(doc))['pmcid']
+        return find_remaining_ids(self._parse_doi(doc))['pmcid']
 
     def _parse_pubmed_id(self, doc):
         """ Returns the PubMed ID of a document as a <class 'str'>."""
         if 'pmid' in doc.keys():
             if doc['pmcid'] != '':
                 return doc['pmcid']
-        return find_pmcid_and_pubmed_id(self._parse_doi(doc))['pubmed_id']
+        return find_remaining_ids(self._parse_doi(doc))['pubmed_id']
 
     def _parse_who_covidence(self, doc):
         """ Returns the who_covidence of a document as a <class 'str'>."""

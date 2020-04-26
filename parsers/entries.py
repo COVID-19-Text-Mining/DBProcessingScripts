@@ -11,6 +11,8 @@ from litcovid import LitCovidCrossrefDocument, LitCovidPubmedDocument
 from biorxiv import BiorxivDocument
 from cord19 import CORD19Document
 from pho import PHODocument
+from dimensions import DimensionsDocument
+from lens_patents import LensPatentDocument
 from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictField, MultipleObjectsReturned, FloatField
 
 class EntriesDocument(VespaDocument):
@@ -198,6 +200,8 @@ def merge_documents(high_priority_doc, low_priority_doc):
     return merged_doc
 
 parsed_collections = [
+    DimensionsDocument,
+    LensPatentDocument,
     BiorxivDocument,
     GoogleFormSubmissionDocument,
     PHODocument,
