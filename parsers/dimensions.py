@@ -5,7 +5,7 @@ from datetime import datetime
 import requests
 from utils import clean_title, find_cited_by, find_references, find_remaining_ids
 from mongoengine import DynamicDocument, GenericReferenceField, DateTimeField, ReferenceField
-from unidecode import unidecode
+from pprint import pprint
 
 latest_version = 1
 
@@ -52,11 +52,11 @@ class DimensionsParser(Parser):
                         first = author.split(', ')[1]
                         last = author.split(', ')[0]
                         if len(first) == 1:
-                            authors_list.append('{0}. {1}'.format(first, last))
+                            authors_list.append({"first_name": first, "last_name": last})
                         else:
-                            authors_list.append('{0} {1}'.format(first, last))
+                            authors_list.append({"first_name": first, "last_name": last})
                     else:
-                        authors_list.append(author)
+                        authors_list.append({"name": author})
                 return authors_list
         return None
 
@@ -267,11 +267,7 @@ class UnparsedDimensionsPubDocument(DynamicDocument):
         parsed_document = self.parser.parse(self.to_mongo())
         parsed_document['_bt'] = datetime.now()
         parsed_document['unparsed_document'] = self
-        try:
-            return DimensionsDocument(**parsed_document)
-        except:
-            print(unidecode(parsed_document))
-            exit(1)
+        return DimensionsDocument(**parsed_document)
 
 class UnparsedDimensionsDataDocument(DynamicDocument):
     meta = {"collection": "Dimensions_datasets"
@@ -289,11 +285,7 @@ class UnparsedDimensionsDataDocument(DynamicDocument):
         parsed_document = self.parser.parse(self.to_mongo())
         parsed_document['_bt'] = datetime.now()
         parsed_document['unparsed_document'] = self
-        try:
-            return DimensionsDocument(**parsed_document)
-        except:
-            print(unidecode(parsed_document))
-            exit(1)
+        return DimensionsDocument(**parsed_document)
 
 class UnparsedDimensionsTrialDocument(DynamicDocument):
     meta = {"collection": "Dimensions_clinical_trials"
@@ -311,8 +303,4 @@ class UnparsedDimensionsTrialDocument(DynamicDocument):
         parsed_document = self.parser.parse(self.to_mongo())
         parsed_document['_bt'] = datetime.now()
         parsed_document['unparsed_document'] = self
-        try:
-            return DimensionsDocument(**parsed_document)
-        except:
-            print(unidecode(parsed_document))
-            exit(1)
+        return DimensionsDocument(**parsed_document)
