@@ -29,9 +29,13 @@ def find_references(doi):
 
     references = []
     if doi:
-        response = requests.get(f"https://opencitations.net/index/api/v1/references/{doi}").json()
+        response = requests.get(f"https://opencitations.net/index/api/v1/references/{doi}")
         if response:
-            references = [{"doi": r['cited'].replace("coci =>", ""), "text": r['cited'].replace("coci =>", "")} for r in response]
+            try:
+                response = response.json()
+                references = [{"doi": r['cited'].replace("coci =>", ""), "text": r['cited'].replace("coci =>", "")} for r in response]
+            except json.decoder.JSONDecodeError:
+                pass
 
     if references:
         return references
@@ -48,41 +52,61 @@ def find_cited_by(doi):
 
     citations = []
     if doi:
-        response = requests.get(f"https://opencitations.net/index/api/v1/citations/{doi}").json()
+        response = requests.get(f"https://opencitations.net/index/api/v1/citations/{doi}")
         if response:
-            citations = [{"doi": r['citing'].replace("coci =>", ""), "text": r['citing'].replace("coci =>", "")} for r in response]
+            try:
+                response = response.json()
+                citations = [{"doi": r['citing'].replace("coci =>", ""), "text": r['citing'].replace("coci =>", "")} for r in response]
+            except json.decoder.JSONDecodeError:
+                pass
     if citations:
         return citations
     else:
         return None
     
     
-def find_pmcid_and_pubmed_id(doi):
-    """ Returns dictionary containing pmcid and pubmed_id if available.
-    Format:
+def find_remaining_ids(id):
+    """ Returns dictionary containing remaining relevant ids corresponding to
+    the input id. Just input doi, pmid, or pmcid; function will return all three.
+    Example output:
         {
-            pmcid : 'pmcid_string',
-            pubmed_id : 'pubmed_id__string'
+            doi : 'doi_string',
+            pmcid 'pmcid_string',
+            pubmed_id : 'pubmed_id_string'
         }
-    Returns None for either id if not available. Returns None for both ids if doi
-    is None or request fails.
+    Returns None for either id if not available. Returns None for both ids if
+    input id is None or request fails.
     """
+
+    None_dict = {
+        'doi' : None,
+        'pmcid' : None,
+        'pubmed_id' : None
+    }
+    if id is None:
+        return None_dict
+
     session = requests.Session()
     try:
-        doi2otherid_url = 'https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/?ids=%s' % doi
-        response = session.get(doi2otherid_url)
+        ids_url = 'https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/?ids=%s' % id
+        response = session.get(ids_url)
         root = ET.fromstring(response.content)
         ids = dict()
     except:
-        return {'pmcid' : None, 'pubmed_id' : None}
-    if root.find('record') is None:
-        return {'pmcid' : None, 'pubmed_id' : None}
-    if 'pmcid' in root.find('record').attrib:
-        ids['pmcid'] = root.find('record').attrib['pmcid']
+        return None_dict
+    record = root.find('record')
+    if record is None:
+        return None_dict
+    if 'doi' in record.attrib:
+        ids['doi'] = record.attrib['doi']
+    else:
+        ids['doi'] = None
+    if 'pmcid' in record.attrib:
+        ids['pmcid'] = record.attrib['pmcid']
     else:
         ids['pmcid'] = None
-    if 'pmid' in root.find('record').attrib:
-        ids['pubmed_id'] = root.find('record').attrib['pmid']
+    if 'pmid' in record.attrib:
+        ids['pubmed_id'] = record.attrib['pmid']
     else:
         ids['pubmed_id'] = None
     return ids

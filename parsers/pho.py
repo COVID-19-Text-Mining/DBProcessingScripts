@@ -10,6 +10,7 @@ from mongoengine import (
 from base import Parser, VespaDocument, indexes
 from utils import clean_title
 
+latest_version = 1
 
 class PHODocument(VespaDocument):
     meta = {
@@ -17,6 +18,7 @@ class PHODocument(VespaDocument):
         "indexes": indexes
     }
 
+    latest_version = latest_version
     unparsed_document = ReferenceField('UnparsedPHODocument', required=True)
 
 
@@ -33,7 +35,7 @@ class PHOParser(Parser):
         return 'Public Health Ontario Synopsis'
 
     def _parse_publication_date(self, doc):
-        return datetime.strptime(doc['Date_Created'].replace(',', ''), '%B %d %Y')
+        return datetime.strptime(doc['Date_Created'].replace(',', '').strip(), '%B %d %Y')
 
     def _parse_abstract(self, doc):
         paragraphs = [doc['Desc']]
@@ -87,7 +89,7 @@ class PHOParser(Parser):
         _parse_is_preprint = _parse_is_covid19 = lambda self, doc: True
 
     def _parse_version(self, doc):
-        return 1
+        return latest_version
 
     def _parse_copyright(self, doc):
         return "The application and use of this document is the responsibility of the user. " \
