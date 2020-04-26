@@ -95,6 +95,10 @@ for entry in entries:
 
         entry.is_covid19 = is_covid19 or entry.is_covid19
 
-    print(entry.is_covid19)
-    entry.save()
+    # print(entry.is_covid19)
+    if 'is_covid19_ML' in entry_dict.keys():
+        if entry.is_covid19_ML < 0.5 and entry.is_covid19:
+            from pprint import pprint
+            pprint(entry_dict)
+    # entry.save()
 

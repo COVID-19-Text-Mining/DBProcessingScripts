@@ -63,7 +63,7 @@ class EntriesDocument(VespaDocument):
     is_covid19_ML = FloatField()
     integer_id = IntField()
 
-entries_keys = [k for k in EntriesDocument._fields.keys() if (k[0] != "_" and k not in ["source_documents", "embeddings", "is_covid19_ML", "integer_id"])]
+entries_keys = [k for k in EntriesDocument._fields.keys() if (k[0] != "_")]
 
 def find_matching_doc(doc):
     #This could definitely be better but I can't figure out how to mangle mongoengine search syntax in the right way
@@ -134,10 +134,10 @@ def merge_documents(high_priority_doc, low_priority_doc):
         if k not in ['summary_human', 'keywords', 'keywords_ML', 'category_human', 'category_human']:
 
             # First fill in what we can from high_priority_doc
-            if high_priority_doc[k] is not None and high_priority_doc[k] not in ["",
+            if high_priority_doc.get(k,None) is not None and high_priority_doc[k] not in ["",
                                                                                                                    []]:
                 merged_doc[k] = high_priority_doc[k]
-            elif low_priority_doc[k] is not None and low_priority_doc[k] not in ["",
+            elif low_priority_doc.get(k,None) is not None and low_priority_doc[k] not in ["",
                                                                                                                   []]:
                 merged_doc[k] = low_priority_doc[k]
             else:
@@ -229,14 +229,14 @@ def build_entries():
             ]
             matching_doc = find_matching_doc(doc)
             if len(matching_doc) == 1:
-                insert_doc = EntriesDocument(**merge_documents(doc, matching_doc[0]))
+                insert_doc = EntriesDocument(**merge_documents(doc.to_mongo(), matching_doc[0].to_mongo()))
                 insert_doc.id = matching_doc[0].id
                 insert_doc.source_documents = matching_doc[0].source_documents
             elif len(matching_doc) > 1:
-                insert_doc = merge_documents(matching_doc[0], doc)
+                insert_doc = merge_documents(matching_doc[0].to_mongo(), doc.to_mongo())
                 insert_doc.source_documents = matching_doc[0].source_documents
                 for d in matching_doc[1:]:
-                    insert_doc = merge_documents(insert_doc, d)
+                    insert_doc = merge_documents(insert_doc, d.to_mongo())
                     insert_doc.source_documents = insert_doc.source_documents + d.source_documents
                     d.delete()
                 insert_doc = EntriesDocument(**insert_doc)

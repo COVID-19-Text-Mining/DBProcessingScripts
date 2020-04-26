@@ -23,7 +23,7 @@ def init_mongoengine():
 
 init_mongoengine()
 
-covid19_classifier = spacy.load("./COVID19_model")
+covid19_classifier = spacy.load("./COVID19_binary_model")
 
 # In[35]:
 
