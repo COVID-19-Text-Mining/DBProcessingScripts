@@ -5,6 +5,7 @@ from datetime import datetime
 import requests
 from utils import clean_title, find_cited_by, find_references, find_remaining_ids
 from mongoengine import DynamicDocument, GenericReferenceField, DateTimeField, ReferenceField
+from unidecode import unidecode
 
 latest_version = 1
 
@@ -269,7 +270,7 @@ class UnparsedDimensionsPubDocument(DynamicDocument):
         try:
             return DimensionsDocument(**parsed_document)
         except:
-            print(parsed_document)
+            print(unidecode(parsed_document))
             exit(1)
 
 class UnparsedDimensionsDataDocument(DynamicDocument):
@@ -291,7 +292,7 @@ class UnparsedDimensionsDataDocument(DynamicDocument):
         try:
             return DimensionsDocument(**parsed_document)
         except:
-            print(parsed_document)
+            print(unidecode(parsed_document))
             exit(1)
 
 class UnparsedDimensionsTrialDocument(DynamicDocument):
@@ -313,5 +314,5 @@ class UnparsedDimensionsTrialDocument(DynamicDocument):
         try:
             return DimensionsDocument(**parsed_document)
         except:
-            print(parsed_document)
+            print(unidecode(parsed_document))
             exit(1)
