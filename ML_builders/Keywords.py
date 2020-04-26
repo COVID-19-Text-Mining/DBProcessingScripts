@@ -13,18 +13,16 @@ import sys
 from pymongo import MongoClient
 import json
 from tqdm import tqdm_notebook
+from mongoengine import connect
 
 from difflib import SequenceMatcher as SM
 import datetime
 from pprint import pprint
 
-client = MongoClient(
-    host=os.environ["COVID_HOST"], 
-    username=os.environ["COVID_USER"], 
-    password=os.environ["COVID_PASS"],
-    authSource=os.environ["COVID_DB"])
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'parsers'))
+from entries import EntriesDocument
+from mongoengine.queryset.visitor import Q
 
-db = client[os.environ["COVID_DB"]]
 nlp = spacy.load("en_core_sci_lg")
 tr = pytextrank.TextRank()
 nlp.add_pipe(tr.PipelineComponent, name="textrank", last=True)
@@ -32,25 +30,36 @@ nlp.add_pipe(tr.PipelineComponent, name="textrank", last=True)
 
 # In[35]:
 
-last_keyword_sweep = db.metadata.find_one({'data': 'last_keyword_sweep'})['datetime']
-entries = list(db.entries.find({"is_covid19": {"$exists": False}}, projection = ["abstract", 'title', "keywords", "keywords_ML", 'category_human', 'is_covid19', 'body_text']))
+def init_mongoengine():
+    connect(db=os.getenv("COVID_DB"),
+            name=os.getenv("COVID_DB"),
+            host=os.getenv("COVID_HOST"),
+            username=os.getenv("COVID_USER"),
+            password=os.getenv("COVID_PASS"),
+            authentication_source=os.getenv("COVID_DB"),
+            )
 
+init_mongoengine()
+
+
+entries = EntriesDocument.objects(Q(keywords__ne=[]))
 # In[48]:
 print(len(entries))
 
 for entry in entries:
     # example text
     text=""
-    if 'abstract' in entry.keys() and entry['abstract'] is not None and len(entry['abstract']) > 0:
-        text = entry["abstract"]
-        human_keywords = entry.get("keywords", [])
+    entry_dict = entry.to_mongo()
+    if 'abstract' in entry_dict.keys() and entry_dict['abstract'] is not None and len(entry_dict['abstract']) > 0:
+        text = entry_dict["abstract"]
+        human_keywords = entry_dict.get("keywords", [])
         if isinstance(human_keywords, list):
             human_keywords = [item for sublist in human_keywords for item in sublist]
         # add PyTextRank to the spaCy pipeline
         try:
             doc = nlp(text)
         except TypeError:
-            pprint(entry)
+            pprint(entry_dict)
         # examine the top-ranked phrases in the document
         ml_keywords = []
         for p in doc._.phrases:
@@ -62,63 +71,30 @@ for entry in entries:
             phrase = phrase.replace("middle east respiratory syndrome coronavirus", "MERS-CoV")
             phrase = phrase.replace("middle east respiratory syndrome", "MERS")
             ml_keywords.append(phrase)
-        entry["keywords_ML"] = ml_keywords
+        entry.keywords = ml_keywords
 
-    else:
-        entry['keywords_ML'] = ""
     covid19_words = ["COVID-19", "SARS-CoV2", "sars-cov-2", "nCoV-2019", "covid19", "sarscov2", "ncov2019", "covid 19", "sars cov2", "ncov 2019", "severe acute respiratory syndrome coronavirus 2", "Wuhan seafood market pneumonia virus", "Coronavirus disease", "covid", "wuhan virus"]
-    if 'category_human' in entry.keys() and not entry['category_human'] in ["", [], None]:
-        entry['is_covid19'] = (entry['category_human'] == "COVID-19/SARS-CoV2/nCoV-2019")
+    if 'category_human' in entry_dict.keys() and not entry_dict['category_human'] in ["", [], None]:
+        entry.is_covid19 = (entry_dict['category_human'] == "COVID-19/SARS-CoV2/nCoV-2019")
     else:
         is_covid19 = False
-        if 'keywords' in entry.keys():
-            if any([c.lower() in [e.lower() for e in entry['keywords']] for c in covid19_words]):
-                is_covid19 = True
-        if 'keywords_ML' in entry.keys():
-            if any([c.lower() in [e.lower() for e in entry['keywords_ML']] for c in covid19_words]):
+        if 'keywords' in entry_dict.keys():
+            if any([c.lower() in [e.lower() for e in entry_dict['keywords']] for c in covid19_words]):
                 is_covid19 = True
         if len(text) > 0:
             if any([c.lower() in text.lower() for c in covid19_words]):
                 is_covid19 = True
-        if 'title' in entry.keys() and entry['title'] is not None:
-            if any([c.lower() in entry['title'].lower() for c in covid19_words]):
+        if 'title' in entry_dict.keys() and entry_dict['title'] is not None:
+            if any([c.lower() in entry_dict['title'].lower() for c in covid19_words]):
                 is_covid19 = True
         try:
-            if any([c.lower() in e['Text'].lower() for c in covid19_words for e in entry['body_text']]):
+            if any([c.lower() in e['text'].lower() for c in covid19_words for e in entry_dict['body_text']]):
                 is_covid19 = True
         except (KeyError, TypeError):
             pass
 
-        entry['is_covid19'] = is_covid19
+        entry.is_covid19 = is_covid19 or entry.is_covid19
 
-    # print(entry)
-    db.entries.update_one({"_id": entry["_id"]}, {"$set": {"keywords_ML": entry["keywords_ML"], "is_covid19": entry["is_covid19"], "last_updated": datetime.datetime.now()}})
-
-db.metadata.update_one({'data':"last_keyword_sweep"}, {"$set": {"datetime": datetime.datetime.now()}})
-    # print(entry)
-#         print("{:.4f} {:5d}  {}".format(p.rank, p.count, p.text))
-#         print(p.chunks[0])
-#     print(text)
-#     if len(human_keywords):
-#         print("HUMAN:")
-#         print(human_keywords)
-#     print("ROBOT:")
-#     print(ml_keywords)
-#     print("___________________________________________________________________________________________")
-
-
-
-# In[49]:
-
-
-# for entry in entries:
-    # try:
-    # except:
-        # continue
-
-
-# In[ ]:
-
-
-
+    print(entry.is_covid19)
+    entry.save()
 

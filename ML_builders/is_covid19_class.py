@@ -10,6 +10,7 @@ import spacy
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'parsers'))
 from entries import EntriesDocument
 from mongoengine import connect
+from mongoengine.queryset.visitor import Q
 
 def init_mongoengine():
     connect(db=os.getenv("COVID_DB"),
@@ -26,7 +27,7 @@ covid19_classifier = spacy.load("./COVID19_model")
 
 # In[35]:
 
-entries = EntriesDocument.objects(is_covid19_ML__exists=False)
+entries = EntriesDocument.objects((Q(body_text__not__size=0) | Q(abstract__ne=None)) & Q(is_covid19_ML__exists=False))
 # In[48]:
 
 def is_covid19_model(entry):
