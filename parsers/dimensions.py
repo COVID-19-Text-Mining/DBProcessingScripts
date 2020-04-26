@@ -288,8 +288,11 @@ class UnparsedDimensionsDataDocument(DynamicDocument):
         parsed_document = self.parser.parse(self.to_mongo())
         parsed_document['_bt'] = datetime.now()
         parsed_document['unparsed_document'] = self
-        print(parsed_document)
-        return DimensionsDocument(**parsed_document)
+        try:
+            return DimensionsDocument(**parsed_document)
+        except:
+            print(parsed_document)
+            exit(1)
 
 class UnparsedDimensionsTrialDocument(DynamicDocument):
     meta = {"collection": "Dimensions_clinical_trials"
@@ -307,5 +310,8 @@ class UnparsedDimensionsTrialDocument(DynamicDocument):
         parsed_document = self.parser.parse(self.to_mongo())
         parsed_document['_bt'] = datetime.now()
         parsed_document['unparsed_document'] = self
-        print(parsed_document)
-        return DimensionsDocument(**parsed_document)
+        try:
+            return DimensionsDocument(**parsed_document)
+        except:
+            print(parsed_document)
+            exit(1)
