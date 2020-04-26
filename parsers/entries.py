@@ -13,7 +13,7 @@ from cord19 import CORD19Document
 from pho import PHODocument
 from dimensions import DimensionsDocument
 from lens_patents import LensPatentDocument
-from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictField, MultipleObjectsReturned, FloatField, IntField
+from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictField, MultipleObjectsReturned, FloatField, StringField
 
 class EntriesDocument(VespaDocument):
 
@@ -61,7 +61,7 @@ class EntriesDocument(VespaDocument):
     source_documents = ListField(GenericReferenceField(), required=True)
     embeddings = DictField(default={})
     is_covid19_ML = FloatField()
-    integer_id = IntField()
+    integer_id = StringField()
 
 entries_keys = [k for k in EntriesDocument._fields.keys() if (k[0] != "_")]
 
@@ -238,10 +238,10 @@ def build_entries():
                 insert_doc.source_documents = matching_doc[0].source_documents
             elif len(matching_doc) > 1:
                 insert_doc = merge_documents(matching_doc[0].to_mongo(), doc.to_mongo())
-                insert_doc.source_documents = matching_doc[0].source_documents
+                insert_doc['source_documents'] = matching_doc[0].source_documents
                 for d in matching_doc[1:]:
                     insert_doc = merge_documents(insert_doc, d.to_mongo())
-                    insert_doc.source_documents = insert_doc.source_documents + d.source_documents
+                    insert_doc['source_documents'] = insert_doc['source_documents'] + d.source_documents
                     d.delete()
                 insert_doc = EntriesDocument(**insert_doc)
                 insert_doc.id = matching_doc[0].id                
@@ -252,5 +252,6 @@ def build_entries():
             if insert_doc:
                 insert_doc.source_documents.append(doc)
                 insert_doc._bt = datetime.now()
-                insert_doc.integer_id = int(insert_doc.id,16)
+                insert_doc.save()
+                insert_doc.integer_id = str(int(str(insert_doc.id),16))
                 insert_doc.save()
