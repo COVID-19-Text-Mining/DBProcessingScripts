@@ -71,12 +71,12 @@ def find_matching_doc(doc):
     pmcid = doc['pmcid'] if doc['pmcid'] is not None else "__"
     scopus_eid = doc['scopus_eid'] if doc['scopus_eid'] is not None else "__"
     try:
-        matching_doc = EntriesDocument.objects(Q(doi__istartswith=doi) | Q(pubmed_id=pubmed_id) | Q(pmcid=pmcid) | Q(scopus_eid=scopus_eid)).no_cache().get()
+        matching_doc = EntriesDocument.objects(Q(doi=doi) | Q(pubmed_id=pubmed_id) | Q(pmcid=pmcid) | Q(scopus_eid=scopus_eid)).no_cache().get()
         return [matching_doc]
     except DoesNotExist:
         pass
     except MultipleObjectsReturned:
-        return [d for d in EntriesDocument.objects(Q(doi__istartswith=doi) | Q(pubmed_id=pubmed_id) | Q(pmcid=pmcid) | Q(scopus_eid=scopus_eid)).no_cache()]
+        return [d for d in EntriesDocument.objects(Q(doi=doi) | Q(pubmed_id=pubmed_id) | Q(pmcid=pmcid) | Q(scopus_eid=scopus_eid)).no_cache()]
     return []
 
 # -*- coding: utf-8 -*-
@@ -203,6 +203,10 @@ def merge_documents(high_priority_doc, low_priority_doc):
             if  not 'name' in author.keys():
                 name = "{}{}{}".format(author['first_name'] if 'first_name' in author.keys() else "", " " + author['middle_name'] if 'middle_name' in author.keys() else "", " " + author['last_name'] if 'last_name' in author.keys() else "",)
                 author['name'] = name
+
+    if merged_doc['doi'] is not None and merged_doc['doi'][-3:-1] == ".v":
+        merged_doc['doi'] = merged_doc['doi'][:-3]
+
     return merged_doc
 
 parsed_collections = [
@@ -224,7 +228,7 @@ def build_entries():
         docs = [doc for doc in collection.objects]
         for doc in docs:
             i+= 1
-            if i%1000 == 0:
+            if i%100 == 0:
                 print(i)
             id_fields = [doc['doi'], 
             doc['pubmed_id'],
