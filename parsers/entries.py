@@ -14,6 +14,7 @@ from pho import PHODocument
 from dimensions import DimensionsDocument
 from lens_patents import LensPatentDocument
 from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictField, MultipleObjectsReturned, FloatField, StringField
+import re
 
 class EntriesDocument(VespaDocument):
 
@@ -70,6 +71,7 @@ def find_matching_doc(doc):
     pubmed_id = doc['pubmed_id'] if doc['pubmed_id'] is not None else "__"
     pmcid = doc['pmcid'] if doc['pmcid'] is not None else "__"
     scopus_eid = doc['scopus_eid'] if doc['scopus_eid'] is not None else "__"
+    pattern = re.compile("{}(\.v[0-9])?".format(re.escape(doi)))
     try:
         matching_doc = EntriesDocument.objects(Q(doi=doi) | Q(pubmed_id=pubmed_id) | Q(pmcid=pmcid) | Q(scopus_eid=scopus_eid)).no_cache().get()
         return [matching_doc]
