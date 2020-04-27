@@ -67,7 +67,7 @@ entries_keys = [k for k in EntriesDocument._fields.keys() if (k[0] != "_")]
 
 def find_matching_doc(doc):
     #This could definitely be better but I can't figure out how to mangle mongoengine search syntax in the right way
-    doi = doc['doi'] if doc['doi'] is not None else "____"
+    doi = doc['doi'] if (doc['doi'] is not None) and (doc['doi'] != "") else "____"
     pubmed_id = doc['pubmed_id'] if doc['pubmed_id'] is not None else "____"
     pmcid = doc['pmcid'] if doc['pmcid'] is not None else "____"
     scopus_eid = doc['scopus_eid'] if doc['scopus_eid'] is not None else "____"
