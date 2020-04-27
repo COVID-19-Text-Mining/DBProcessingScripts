@@ -243,6 +243,8 @@ parsed_collections = [
 
 def build_entries():
     i=0
+    def find_matching_doc(doc):
+        return []
     for collection in parsed_collections:
         print(collection)
         docs = [doc for doc in collection.objects]
@@ -276,4 +278,7 @@ def build_entries():
             if insert_doc:
                 insert_doc.source_documents.append(doc)
                 insert_doc._bt = datetime.now()
-                insert_doc.save()
+                try:
+                    insert_doc.save()
+                except:
+                    pass
