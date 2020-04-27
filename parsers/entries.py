@@ -62,6 +62,7 @@ class EntriesDocument(VespaDocument):
     source_documents = ListField(GenericReferenceField(), required=True)
     embeddings = DictField(default={})
     is_covid19_ML = FloatField()
+    keywords_ML = ListField(StringField(required=True), default=lambda: [])
 
 entries_keys = [k for k in EntriesDocument._fields.keys() if (k[0] != "_")]
 

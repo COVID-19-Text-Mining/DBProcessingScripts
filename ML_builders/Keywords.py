@@ -71,7 +71,7 @@ for entry in entries:
             phrase = phrase.replace("middle east respiratory syndrome coronavirus", "MERS-CoV")
             phrase = phrase.replace("middle east respiratory syndrome", "MERS")
             ml_keywords.append(phrase)
-        entry.keywords = ml_keywords
+        entry.keywords_ML = ml_keywords
 
     covid19_words = ["COVID-19", "SARS-CoV2", "sars-cov-2", "nCoV-2019", "covid19", "sarscov2", "ncov2019", "covid 19", "sars cov2", "ncov 2019", "severe acute respiratory syndrome coronavirus 2", "Wuhan seafood market pneumonia virus", "Coronavirus disease", "covid", "wuhan virus"]
     if 'category_human' in entry_dict.keys() and not entry_dict['category_human'] in ["", [], None]:
