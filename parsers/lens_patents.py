@@ -15,7 +15,7 @@ class LensPatentDocument(VespaDocument):
     }
 
     latest_version = latest_version
-    unparsed_document = ReferenceField('UnparsedLensPatentDocument', required=True)
+    unparsed_document = ReferenceField('UnparsedLensDocument', required=True)
 
 class LensPatentParser(Parser):
     """
@@ -193,7 +193,7 @@ class UnparsedLensDocument(DynamicDocument):
 
     parsed_document = ReferenceField(LensPatentDocument, required=False)
 
-    last_updated = DateTimeField(db_field="last_updated")
+    last_updated = DateTimeField(db_field="Last_Updated")
 
     def parse(self):
         parsed_document = self.parser.parse(self.to_mongo())

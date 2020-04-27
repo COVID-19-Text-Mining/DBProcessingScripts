@@ -11,7 +11,10 @@ from litcovid import LitCovidCrossrefDocument, LitCovidPubmedDocument
 from biorxiv import BiorxivDocument
 from cord19 import CORD19Document
 from pho import PHODocument
-from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictField, MultipleObjectsReturned, FloatField
+from dimensions import DimensionsDocument
+from lens_patents import LensPatentDocument
+from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictField, MultipleObjectsReturned, FloatField, StringField
+import re
 
 class EntriesDocument(VespaDocument):
 
@@ -59,22 +62,29 @@ class EntriesDocument(VespaDocument):
     source_documents = ListField(GenericReferenceField(), required=True)
     embeddings = DictField(default={})
     is_covid19_ML = FloatField()
+    keywords_ML = ListField(StringField(required=True), default=lambda: [])
 
-entries_keys = [k for k in EntriesDocument._fields.keys() if (k[0] != "_" and k not in ["source_documents", "embeddings", "is_covid19_ML"])]
+entries_keys = [k for k in EntriesDocument._fields.keys() if (k[0] != "_")]
 
 def find_matching_doc(doc):
     #This could definitely be better but I can't figure out how to mangle mongoengine search syntax in the right way
-    doi = doc['doi'] if doc['doi'] is not None else "_"
-    pubmed_id = doc['pubmed_id'] if doc['pubmed_id'] is not None else "_"
-    pmcid = doc['pmcid'] if doc['pmcid'] is not None else "_"
-    scopus_eid = doc['scopus_eid'] if doc['scopus_eid'] is not None else "_"
+    doi = doc['doi'] if (doc['doi'] is not None) and (doc['doi'] != "") else "____"
+    pubmed_id = doc['pubmed_id'] if doc['pubmed_id'] is not None else "____"
+    pmcid = doc['pmcid'] if doc['pmcid'] is not None else "____"
+    scopus_eid = doc['scopus_eid'] if doc['scopus_eid'] is not None else "____"
+
+    if doi[-3:-1] == ".v":
+        doi = doi[:-3]
+
+    pattern = re.compile("{}(\.v[0-9])?".format(re.escape(doi)))
+
     try:
-        matching_doc = EntriesDocument.objects(Q(doi=doi) | Q(pubmed_id=pubmed_id) | Q(pmcid=pmcid) | Q(scopus_eid=scopus_eid)).no_cache().get()
+        matching_doc = EntriesDocument.objects(Q(doi=pattern) | Q(pubmed_id=pubmed_id) | Q(pmcid=pmcid) | Q(scopus_eid=scopus_eid)).no_cache().get()
         return [matching_doc]
     except DoesNotExist:
         pass
     except MultipleObjectsReturned:
-        return [d for d in EntriesDocument.objects(Q(doi=doi) | Q(pubmed_id=pubmed_id) | Q(pmcid=pmcid) | Q(scopus_eid=scopus_eid)).no_cache()]
+        return [d for d in EntriesDocument.objects(Q(doi=pattern) | Q(pubmed_id=pubmed_id) | Q(pmcid=pmcid) | Q(scopus_eid=scopus_eid)).no_cache()]
     return []
 
 # -*- coding: utf-8 -*-
@@ -131,10 +141,10 @@ def merge_documents(high_priority_doc, low_priority_doc):
         if k not in ['summary_human', 'keywords', 'keywords_ML', 'category_human', 'category_human']:
 
             # First fill in what we can from high_priority_doc
-            if high_priority_doc[k] is not None and high_priority_doc[k] not in ["",
+            if high_priority_doc.get(k,None) is not None and high_priority_doc[k] not in ["",
                                                                                                                    []]:
                 merged_doc[k] = high_priority_doc[k]
-            elif low_priority_doc[k] is not None and low_priority_doc[k] not in ["",
+            elif low_priority_doc.get(k,None) is not None and low_priority_doc[k] not in ["",
                                                                                                                   []]:
                 merged_doc[k] = low_priority_doc[k]
             else:
@@ -144,10 +154,10 @@ def merge_documents(high_priority_doc, low_priority_doc):
             # Now merge the annotation categories into lists
             merged_category = []
             for doc in [high_priority_doc, low_priority_doc]:
-                if isinstance(doc[k], str):
+                if isinstance(doc.get(k, None), str):
                     if not doc[k] in merged_category:
                         merged_category.append(doc[k])
-                elif isinstance(doc[k], list):
+                elif isinstance(doc.get(k,None), list):
                     for e in doc[k]:
                         if not e in merged_category:
                             merged_category.append(e)
@@ -195,9 +205,24 @@ def merge_documents(high_priority_doc, low_priority_doc):
     if merged_doc['abstract'] is not None:
         merged_doc['abstract'] = merged_doc['abstract'].strip()
 
+    merged_doc['is_covid19'] = high_priority_doc['is_covid19'] or low_priority_doc['is_covid19']
+    if merged_doc['authors'] is not None:
+        for author in merged_doc['authors']:
+            if  not 'name' in author.keys():
+                name = "{}{}{}".format(author['first_name'] if 'first_name' in author.keys() else "", " " + author['middle_name'] if 'middle_name' in author.keys() else "", " " + author['last_name'] if 'last_name' in author.keys() else "",)
+                author['name'] = name
+            if ',' in author['name']:
+                author['name'] = ' '.join(map(lambda x: x.strip(), reversed(author['name'].split(','))))
+
+
+    if merged_doc['doi'] is not None and merged_doc['doi'][-3:-1] == ".v":
+        merged_doc['doi'] = merged_doc['doi'][:-3]
+
     return merged_doc
 
 parsed_collections = [
+    DimensionsDocument,
+    LensPatentDocument,
     BiorxivDocument,
     GoogleFormSubmissionDocument,
     PHODocument,
@@ -214,7 +239,7 @@ def build_entries():
         docs = [doc for doc in collection.objects]
         for doc in docs:
             i+= 1
-            if i%1000 == 0:
+            if i%100 == 0:
                 print(i)
             id_fields = [doc['doi'], 
             doc['pubmed_id'],
@@ -223,17 +248,20 @@ def build_entries():
             ]
             matching_doc = find_matching_doc(doc)
             if len(matching_doc) == 1:
-                insert_doc = EntriesDocument(**merge_documents(doc, matching_doc[0]))
+                insert_doc = EntriesDocument(**merge_documents(doc.to_mongo(), matching_doc[0].to_mongo()))
                 insert_doc.id = matching_doc[0].id
+                insert_doc.source_documents = matching_doc[0].source_documents
             elif len(matching_doc) > 1:
-                insert_doc = merge_documents(matching_doc[0], doc)
-                insert_doc['_id'] = matching_doc[0].id
+                insert_doc = merge_documents(matching_doc[0].to_mongo(), doc.to_mongo())
+                insert_doc['source_documents'] = matching_doc[0].source_documents
                 for d in matching_doc[1:]:
-                    insert_doc = merge_documents(insert_doc, d)
+                    insert_doc = merge_documents(insert_doc, d.to_mongo())
+                    insert_doc['source_documents'] = insert_doc['source_documents'] + d.source_documents
                     d.delete()
-                insert_doc = EntriesDocument(**insert_doc)                
+                insert_doc = EntriesDocument(**insert_doc)
+                insert_doc.id = matching_doc[0].id                
             elif any([x is not None for x in id_fields]):
-                insert_doc = EntriesDocument(**{k:v for k,v in doc.to_mongo().items() if k in entries_keys})
+                insert_doc = EntriesDocument(**merge_documents(doc.to_mongo(), {'is_covid19': False}))
             else:
                 insert_doc = None
             if insert_doc:

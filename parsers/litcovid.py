@@ -156,7 +156,7 @@ class LitCovidParser(Parser):
             else:
                 datestring = "{0}-{1}-{2}".format(date[0][0], date[0][1], date[0][2])
                 return datetime.strptime(datestring, '%Y-%m-%d')
-        return doc['last_updated']
+        return self._parse_last_updated(doc)
 
     def _parse_has_year(self, doc):
         """ Returns a <class 'bool'> specifying whether a document's year can be trusted."""

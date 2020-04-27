@@ -3,8 +3,9 @@ import json
 import re
 from datetime import datetime
 import requests
-from utils import clean_title, find_cited_by, find_references, find_pmcid_and_pubmed_id
+from utils import clean_title, find_cited_by, find_references, find_remaining_ids
 from mongoengine import DynamicDocument, GenericReferenceField, DateTimeField, ReferenceField
+from pprint import pprint
 
 latest_version = 1
 
@@ -51,11 +52,11 @@ class DimensionsParser(Parser):
                         first = author.split(', ')[1]
                         last = author.split(', ')[0]
                         if len(first) == 1:
-                            authors_list.append('{0}. {1}'.format(first, last))
+                            authors_list.append({"first_name": first, "last_name": last})
                         else:
-                            authors_list.append('{0} {1}'.format(first, last))
+                            authors_list.append({"first_name": first, "last_name": last})
                     else:
-                        authors_list.append(author)
+                        authors_list.append({"name": author})
                 return authors_list
         return None
 
@@ -81,7 +82,7 @@ class DimensionsParser(Parser):
             return datetime.strptime(doc['publication_date'], '%Y-%m-%d')
         elif 'publication_year' in doc.keys():
             return datetime.strptime(str(doc['publication_year']), '%Y')
-        return None
+        return doc['last_updated']
 
     def _parse_has_year(self, doc):
         """ Returns a <class 'bool'> specifying whether a document's year can be trusted."""
@@ -202,14 +203,14 @@ class DimensionsParser(Parser):
         if 'pmcid' in doc.keys():
             if doc['pmcid'] != '':
                 return doc['pmcid']
-        return find_pmcid_and_pubmed_id(self._parse_doi(doc))['pmcid']
+        return find_remaining_ids(self._parse_doi(doc))['pmcid']
 
     def _parse_pubmed_id(self, doc):
         """ Returns the PubMed ID of a document as a <class 'str'>."""
         if 'pmid' in doc.keys():
             if doc['pmcid'] != '':
                 return doc['pmcid']
-        return find_pmcid_and_pubmed_id(self._parse_doi(doc))['pubmed_id']
+        return find_remaining_ids(self._parse_doi(doc))['pubmed_id']
 
     def _parse_who_covidence(self, doc):
         """ Returns the who_covidence of a document as a <class 'str'>."""
@@ -260,7 +261,7 @@ class UnparsedDimensionsPubDocument(DynamicDocument):
 
     parsed_document = ReferenceField(DimensionsDocument, required=False)
 
-    last_updated = DateTimeField(db_field="last_updated")
+    last_updated = DateTimeField(db_field="date_added")
 
     def parse(self):
         parsed_document = self.parser.parse(self.to_mongo())
@@ -278,7 +279,7 @@ class UnparsedDimensionsDataDocument(DynamicDocument):
 
     parsed_document = ReferenceField(DimensionsDocument, required=False)
 
-    last_updated = DateTimeField(db_field="last_updated")
+    last_updated = DateTimeField(db_field="date_added")
 
     def parse(self):
         parsed_document = self.parser.parse(self.to_mongo())
@@ -296,7 +297,7 @@ class UnparsedDimensionsTrialDocument(DynamicDocument):
 
     parsed_document = ReferenceField(DimensionsDocument, required=False)
 
-    last_updated = DateTimeField(db_field="last_updated")
+    last_updated = DateTimeField(db_field="date_added")
 
     def parse(self):
         parsed_document = self.parser.parse(self.to_mongo())
