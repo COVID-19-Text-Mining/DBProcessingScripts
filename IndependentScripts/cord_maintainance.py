@@ -24,7 +24,6 @@ PAPER_COLLECTIONS = {
     'CORD_noncomm_use_subset',
 }
 
-
 #######################################
 # functions for stats
 #######################################
@@ -36,12 +35,12 @@ def doi_existence_stat(mongo_db):
         col = mongo_db[col_name]
         query_w_doi = col.find({'doi': {'$exists': True}})
         query_w_doi_len_gt_0 = col.find({
-            'doi': {'$exists': True},
+            'doi': {'$exists': True, '$ne': None},
             '$where': 'this.doi.length > 0',
         })
         query_w_crossref_tried = col.find({'tried_crossref_doi': True})
         query_w_csv_tried = col.find({'tried_csv_doi': True})
-        query_w_cord_id = col.find({'paper_id': {'$exists': True}})
+        query_w_paper_id = col.find({'paper_id': {'$exists': True}})
         query_w_doi_title_empty = col.find({
             'doi': {'$exists': True},
             'metadata': {'$exists': True},
@@ -49,7 +48,7 @@ def doi_existence_stat(mongo_db):
         })
         query_w_doi_abs_empty = col.find({
             'doi': {'$exists': True},
-            'abstract': {'$exists': True},
+            'abstract': {'$exists': True, '$ne': None},
             '$where': 'this.abstract.length == 0',
         })
         query_w_doi_author_empty = col.find({
@@ -79,7 +78,7 @@ def doi_existence_stat(mongo_db):
             'abstract': {'$exists': True},
             '$where': 'this.metadata.title.length == 0 & this.abstract.length == 0',
         })
-        query_wo_doi_cord_id_empty = col.find({
+        query_wo_doi_paper_id_empty = col.find({
             'doi': {'$exists': False},
             'paper_id': {'$exists': False},
         })
@@ -93,12 +92,12 @@ def doi_existence_stat(mongo_db):
         print('query_w_doi_abs_empty', query_w_doi_abs_empty.count())
         print('query_w_doi_author_empty', query_w_doi_author_empty.count())
         print('query_w_csv_tried', query_w_csv_tried.count())
-        print('query_w_cord_id', query_w_cord_id.count())
+        print('query_w_paper_id', query_w_paper_id.count())
         print('query_wo_doi_no_cr_csv', query_wo_doi_no_cr_csv.count())
         print('query_wo_doi_title_empty', query_wo_doi_title_empty.count())
         print('query_wo_doi_abs_empty', query_wo_doi_abs_empty.count())
         print('query_wo_doi_title_abs_empty', query_wo_doi_title_abs_empty.count())
-        print('query_wo_doi_cord_id_empty', query_wo_doi_cord_id_empty.count())
+        print('query_wo_doi_paper_id_empty', query_wo_doi_paper_id_empty.count())
         print()
 
 
@@ -362,7 +361,6 @@ def add_crossref_by_doi(mongo_db):
                 query_result = None
                 print(e)
             if query_result is not None:
-                print('doc', doc)
                 col.find_one_and_update(
                     {"_id": doc['_id']},
                     {
@@ -387,9 +385,9 @@ def add_useful_fields(mongo_db):
                 "csv_raw_result" : { "$exists" : True },
             },
         )
-        query = list(query)
-        print('len(query) csv_raw_result', len(query))
-        for doc in query:
+        for i, doc in enumerate(query):
+            if i%1000 == 0:
+                print('add_useful_fields in {}: {}'.format(col_name, i, ))
             set_params = {}
             # pmcid
             if ('pmcid' in doc['csv_raw_result']
@@ -453,10 +451,10 @@ def add_useful_fields(mongo_db):
                 "crossref_raw_result" : { "$exists" : True },
             },
         )
-        query = list(query)
-        print('len(query) crossref_raw_result', len(query))
         update_counter = collections.Counter()
-        for doc in query:
+        for i, doc in enumerate(query):
+            if i%1000 == 0:
+                print('add_useful_fields in {}: {}'.format(col_name, i, ))
             set_params = {}
             # journal_name
             journal_name = None
@@ -531,26 +529,69 @@ def add_useful_fields(mongo_db):
             if ('metadata' in doc):
                 metadata = doc['metadata']
 
+            # suggested_metadata
+            suggested_metadata = None
+            if ('suggested_metadata' in doc):
+                suggested_metadata = doc['suggested_metadata']
+            elif metadata is not None:
+                suggested_metadata = metadata
+                set_params['suggested_metadata'] = suggested_metadata
 
             # title
-            # get title
-            title = None
-            if metadata is not None:
-                if ('title' in metadata
-                        and isinstance(metadata['title'], str)
-                        and len(metadata['title'].strip()) > 0
-                ):
-                    title = metadata['title']
-            if (title is None
-                and 'title' in doc['crossref_raw_result']
-                and isinstance(doc['crossref_raw_result']['title'], list)
-                and len(doc['crossref_raw_result']['title']) > 0
-                and len(doc['crossref_raw_result']['title'][0]) > 0
-            ):
-                update_counter['title'] += 1
-                if 'doi' in doc:
-                    update_counter['title_doi'] += 1
+            if suggested_metadata is not None:
+                # get title
+                title = None
 
+                if ('title' in suggested_metadata
+                        and isinstance(suggested_metadata['title'], str)
+                        and len(suggested_metadata['title'].strip()) > 0
+                ):
+                    title = suggested_metadata['title']
+
+                if (title is None
+                    and 'title' in doc['crossref_raw_result']
+                    and isinstance(doc['crossref_raw_result']['title'], list)
+                    and len(doc['crossref_raw_result']['title']) > 0
+                    and len(doc['crossref_raw_result']['title'][0]) > 0
+                ):
+                    update_counter['title'] += 1
+                    suggested_metadata['title'] = doc['crossref_raw_result']['title'][0]
+                    set_params['suggested_metadata'] = suggested_metadata
+
+                    if 'doi' in doc:
+                        update_counter['title_doi'] += 1
+
+            # author
+            if suggested_metadata is not None:
+                # get author
+                author_names = None
+
+                author_names = suggested_metadata.get('authors')
+                if not (isinstance(author_names, list) and len(author_names) > 0):
+                    author_names = None
+
+                if (author_names is None
+                    and 'author' in doc['crossref_raw_result']
+                    and isinstance(doc['crossref_raw_result']['author'], list)
+                    and len(doc['crossref_raw_result']['author']) > 0
+                ):
+                    update_counter['author'] += 1
+                    suggested_metadata['authors'] = []
+                    for x in doc['crossref_raw_result']['author']:
+                        if not ('given' in x and 'family' in x):
+                            continue
+                        suggested_metadata['authors'].append({
+                            'first': x['given'],
+                            'middle': [],
+                            'last': x['family'],
+                            'suffix': '',
+                            'affiliation': {},
+                            'email': '',
+                        })
+                    set_params['suggested_metadata'] = suggested_metadata
+                    pprint(suggested_metadata)
+                    if 'doi' in doc:
+                        update_counter['authors_doi'] += 1
 
             # abstract
             # get abstract
@@ -559,8 +600,8 @@ def add_useful_fields(mongo_db):
                 abstract = ''
                 for fragment in doc['abstract']:
                     if ('text' in fragment
-                            and isinstance(fragment['text'], str)
-                            and len(fragment['text']) > 0
+                        and isinstance(fragment['text'], str)
+                        and len(fragment['text']) > 0
                     ):
                         abstract += fragment['text'].strip() + ' '
 
@@ -568,48 +609,41 @@ def add_useful_fields(mongo_db):
                 if len(abstract) == 0:
                     abstract = None
 
-            if (abstract is None
+            # suggested_abstract
+            suggested_abstract = None
+            if ('suggested_abstract' in doc and len(doc['suggested_abstract']) > 0):
+                suggested_abstract = doc['suggested_abstract']
+            elif abstract is not None:
+                suggested_abstract = abstract
+                set_params['suggested_abstract'] = suggested_abstract
+
+
+            if (suggested_abstract is None
                 and 'abstract' in doc['crossref_raw_result']
                 and isinstance(doc['crossref_raw_result']['abstract'], str)
                 and len(doc['crossref_raw_result']['abstract']) > 0
             ):
                 update_counter['abstract'] += 1
+                suggested_abstract = doc['crossref_raw_result']['abstract']
+                set_params['suggested_abstract'] = suggested_abstract
                 if 'doi' in doc:
                     update_counter['abstract_doi'] += 1
 
-            # author
-            # get author
-            author_names = None
-            if metadata is not None:
-                author_names = metadata.get('authors')
-                if not (isinstance(author_names, list) and len(author_names) > 0):
-                    author_names = None
-            if (author_names is None
-                and 'author' in doc['crossref_raw_result']
-                and isinstance(doc['crossref_raw_result']['author'], list)
-                and len(doc['crossref_raw_result']['author']) > 0
-            ):
-                update_counter['author'] += 1
-                if 'doi' in doc:
-                    update_counter['authors_doi'] += 1
-
-
-            # # update doc
-            # if len(set_params) > 0:
-            #     try:
-            #         col.find_one_and_update(
-            #             {"_id": doc['_id']},
-            #             {
-            #                 "$set": set_params,
-            #             }
-            #         )
-            #     except Exception as e:
-            #         print('doc _id', doc['_id'])
-            #         print('set_params', set_params)
-            #         print(e)
-            #         raise e
+            # update doc
+            if len(set_params) > 0:
+                try:
+                    col.find_one_and_update(
+                        {"_id": doc['_id']},
+                        {
+                            "$set": set_params,
+                        }
+                    )
+                except Exception as e:
+                    print('doc _id', doc['_id'])
+                    print('set_params', set_params)
+                    print(e)
+                    raise e
     print('update_counter', update_counter)
-
 
 def assign_suggested_doi(mongo_db):
     for col_name in mongo_db.collection_names():
@@ -955,37 +989,21 @@ def doi_match_a_batch_by_crossref(task_batch):
 
             doc_updated = True
 
-        try:
+        if doc_updated:
             col.find_one_and_update(
                 {"_id": doc['_id']},
                 {
                     "$set": set_params,
                 }
             )
-        except Exception as e:
-            print('matched_item')
-            pprint(matched_item)
-            print(e)
-            raise e
 
-def doi_match_a_batch_by_csv_new(task_batch):
+
+def doi_match_a_batch_by_paper_id(task_batch):
     mongo_db = get_mongo_db('../config.json')
-    csv_data = pd.read_csv(
-        '../rsc/metadata.csv',
-        dtype={
-            'pubmed_id': str,
-            'pmcid': str,
-            'publish_time': str,
-            'Microsoft Academic Paper ID': str,
-        }
-    )
-    csv_data = csv_data.fillna('')
-    csv_data['title'] = csv_data['title'].str.lower()
-    data = csv_data[csv_data['sha']!='']
-    print('data.shape', data.shape)
+    meta_col = mongo_db['CORD_metadata']
+
     for i, task in enumerate(task_batch):
-        if i % 10 == 0:
-            print('thread', threading.currentThread().getName())
+        if i % 100 == 0:
             print('processing the {}th out of {}'.format(i, len(task_batch)))
         col = mongo_db[task['col_name']]
 
@@ -996,47 +1014,49 @@ def doi_match_a_batch_by_csv_new(task_batch):
 
         doc_updated = False
 
-        # get cord_id
-        cord_id = None
+        # get paper_id
+        paper_id = None
         if ('paper_id' in doc and isinstance(doc['paper_id'], str) and len(doc['paper_id']) > 0):
-            cord_id = doc['paper_id']
+            paper_id = doc['paper_id']
 
         # query csv_data
         matched_item = None
 
-        # match by title
-        if cord_id is not None and matched_item is None:
-            data_w_cord_id = csv_data[csv_data['sha'] == cord_id]
-
-            if len(data_w_cord_id) == 1:
-                # print('raw_title: ', raw_title)
-                # print('title', title)
-                # print("csv_title", sorted_data.iloc[0]['title'])
-                # print('similarity', sorted_similarity.iloc[0])
-                # print(sorted_similarity.head(10))
-                # print('len(raw_title)', len(raw_title))
-                # print('doi', sorted_data.iloc[0]['doi'])
-                # print()
-                #
-                # if (len(title) > LEAST_TITLE_LEN
-                #     and len(sorted_data.iloc[0]['title']) > LEAST_TITLE_LEN
-                #     and sorted_similarity.iloc[0] > LEAST_TITLE_SIMILARITY):
-                matched_item = correct_pd_dict(data_w_cord_id.iloc[0].to_dict())
-
-
-            elif len(data_w_cord_id) > 1:
-                print('more than 1 entries matched!')
-                print('cord_id', cord_id)
-                print(', '.join(list(data_w_cord_id['sha'])))
-
+        # match by sha
+        if paper_id is not None and matched_item is None:
+            query_by_sha = meta_col.find_one(
+                {
+                    'sha': {'$regex': r'.*\b{}\b.*'.format(paper_id)}
+                },
+                {
+                    '_id': False,
+                    'last_updated': False,
+                }
+            )
+            if query_by_sha:
+                matched_item = query_by_sha
             else:
-                print('no entry matched!')
-                print('cord_id', cord_id)
+                pass
 
+        # match by pmcid
+        if paper_id is not None and matched_item is None:
+            query_by_sha = meta_col.find_one(
+                {
+                    'pmcid': paper_id,
+                },
+                {
+                    '_id': False,
+                    'last_updated': False,
+                }
+            )
+            if query_by_sha:
+                matched_item = query_by_sha
+            else:
+                pass
 
         if matched_item is None:
             print('no entry matched!')
-            print('cord_id', cord_id)
+            print('paper_id', paper_id)
             print()
 
         # update db
@@ -1058,18 +1078,13 @@ def doi_match_a_batch_by_csv_new(task_batch):
 
             doc_updated = True
 
-        try:
+        if doc_updated:
             col.find_one_and_update(
                 {"_id": doc['_id']},
                 {
                     "$set": set_params,
                 }
             )
-        except Exception as e:
-            print('matched_item')
-            pprint(matched_item)
-            print(e)
-            raise e
 
 
 def doi_match_a_batch_by_csv(task_batch):
@@ -1308,20 +1323,15 @@ def doi_match_a_batch_by_csv(task_batch):
 
             doc_updated = True
 
-        try:
+        if doc_updated:
             col.find_one_and_update(
                 {"_id": doc['_id']},
                 {
                     "$set": set_params,
                 }
             )
-        except Exception as e:
-            print('matched_item')
-            pprint(matched_item)
-            print(e)
-            raise e
 
-def foo(mongo_db, num_cores=4):
+def doi_match_by_crossref(mongo_db, num_cores=4):
     for col_name in mongo_db.collection_names():
         # if col_name != 'CORD_noncomm_use_subset':
         #     continue
@@ -1378,7 +1388,7 @@ def foo(mongo_db, num_cores=4):
         p.join()
 
 
-def bar(mongo_db, num_cores=1):
+def doi_match_by_metadata_csv(mongo_db, num_cores=1):
     for col_name in mongo_db.collection_names():
         # if col_name != 'CORD_custom_license':
         #     continue
@@ -1434,7 +1444,7 @@ def bar(mongo_db, num_cores=1):
         p.close()
         p.join()
 
-def misaka(mongo_db, num_cores=1):
+def doi_match_by_paper_id(mongo_db, num_cores=1):
     for col_name in mongo_db.collection_names():
         # if col_name != 'CORD_custom_license':
         #     continue
@@ -1449,9 +1459,11 @@ def misaka(mongo_db, num_cores=1):
                 "csv_raw_result": {"$exists": False},
             },
             {
-                '_id': True
+                '_id': True,
+                'paper_id': True,
             }
         )
+
         # used
         all_tasks = list(query)
         for task in all_tasks:
@@ -1469,7 +1481,7 @@ def misaka(mongo_db, num_cores=1):
                 parallel_arguments.append((all_tasks[i * num_task_per_batch:], ))
 
         p = mp.Pool(processes=num_cores)
-        all_summary = p.starmap(doi_match_a_batch_by_csv_new, parallel_arguments)
+        all_summary = p.starmap(doi_match_a_batch_by_paper_id, parallel_arguments)
         p.close()
         p.join()
 
@@ -1478,21 +1490,22 @@ if __name__ == '__main__':
     db = get_mongo_db('../config.json')
     print(db.collection_names())
 
-    doi_existence_stat(db)
+    doi_match_by_paper_id(db, num_cores=4)
+
+    add_crossref_by_doi(db)
+
+    add_useful_fields(db)
+
+    assign_suggested_doi(db)
+
+    # doi_existence_stat(db)
 
     # check_doc_wo_doi(db)
 
     # valid_CORD_doi(db)
 
-    # add_crossref_by_doi(db)
+    # doi_match_by_crossref(db, num_cores=4)
 
-    # add_useful_fields(db)
+    # doi_match_by_metadata_csv(db, num_cores=4)
 
-    # assign_suggested_doi(db)
-
-    # foo(db, num_cores=4)
-
-    # bar(db, num_cores=4)
-
-    # misaka(db, num_cores=4)
 

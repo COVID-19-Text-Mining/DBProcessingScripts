@@ -3,21 +3,14 @@ from pprint import pprint
 
 from IndependentScripts.common_utils import get_mongo_db
 from keywords_extraction import KeywordsExtractorBase
-from keywords_extraction import KeywordsExtractorRaKUn
+from keywords_extraction import KeywordsExtractorNN
 
 def extract_keywords_in_entries(mongo_db):
 
     processed_ids = set()
 
-    extractor = KeywordsExtractorRaKUn(
-        name='RaKUn_0',
-        distance_threshold=2,
-        pair_diff_length=2,
-        bigram_count_threhold=2,
-        num_tokens=[1, 2, 3],
-        max_similar=10,
-        max_occurrence=3,
-        score_threshold=None,
+    extractor = KeywordsExtractorNN(
+        only_extractive=True,
         use_longest_phrase=True,
     )
 
