@@ -74,7 +74,7 @@ def find_matching_doc(doc):
             matching_doc = EntriesDocument.objects(Q(title=title)).no_cache().get()
             return [matching_doc]
         except DoesNotExist:
-            pass
+            return []
     else:
         #This could definitely be better but I can't figure out how to mangle mongoengine search syntax in the right way
         doi = doc['doi'] if (doc['doi'] is not None) and (doc['doi'] != "") else "____"
