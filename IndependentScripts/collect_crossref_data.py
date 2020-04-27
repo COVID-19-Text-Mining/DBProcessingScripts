@@ -50,7 +50,9 @@ def collect_crossref_data(mongo_db):
         )
         for i, doc in enumerate(query):
             if i%1000 == 0:
-                print('add_crossref_by_doi in {}: {}'.format(col_name, i, ))
+                print('collect_crossref_data in {}: {}'.format(col_name, i, ))
+            if not (isinstance(doc['doi'], str) and len(doc['doi']) > 0):
+                continue
             doi = doi_url_rm_prefix(doc['doi'])
             query_aug = aug_col.find_one({'doi': doi})
             if query_aug:

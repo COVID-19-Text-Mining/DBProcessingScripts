@@ -35,7 +35,7 @@ def doi_existence_stat(mongo_db):
         col = mongo_db[col_name]
         query_w_doi = col.find({'doi': {'$exists': True}})
         query_w_doi_len_gt_0 = col.find({
-            'doi': {'$exists': True},
+            'doi': {'$exists': True, '$ne': None},
             '$where': 'this.doi.length > 0',
         })
         query_w_crossref_tried = col.find({'tried_crossref_doi': True})
@@ -48,7 +48,7 @@ def doi_existence_stat(mongo_db):
         })
         query_w_doi_abs_empty = col.find({
             'doi': {'$exists': True},
-            'abstract': {'$exists': True},
+            'abstract': {'$exists': True, '$ne': None},
             '$where': 'this.abstract.length == 0',
         })
         query_w_doi_author_empty = col.find({
@@ -361,7 +361,6 @@ def add_crossref_by_doi(mongo_db):
                 query_result = None
                 print(e)
             if query_result is not None:
-                print('doc', doc)
                 col.find_one_and_update(
                     {"_id": doc['_id']},
                     {
@@ -1491,21 +1490,22 @@ if __name__ == '__main__':
     db = get_mongo_db('../config.json')
     print(db.collection_names())
 
+    doi_match_by_paper_id(db, num_cores=4)
+
+    add_crossref_by_doi(db)
+
+    add_useful_fields(db)
+
+    assign_suggested_doi(db)
+
     # doi_existence_stat(db)
 
     # check_doc_wo_doi(db)
 
     # valid_CORD_doi(db)
 
-    # add_crossref_by_doi(db)
-
-    add_useful_fields(db)
-
-    # assign_suggested_doi(db)
-
     # doi_match_by_crossref(db, num_cores=4)
 
     # doi_match_by_metadata_csv(db, num_cores=4)
 
-    # doi_match_by_paper_id(db, num_cores=4)
 
