@@ -211,6 +211,9 @@ def merge_documents(high_priority_doc, low_priority_doc):
             if  not 'name' in author.keys():
                 name = "{}{}{}".format(author['first_name'] if 'first_name' in author.keys() else "", " " + author['middle_name'] if 'middle_name' in author.keys() else "", " " + author['last_name'] if 'last_name' in author.keys() else "",)
                 author['name'] = name
+            if ',' in author['name']:
+                author['name'] = ' '.join(map(lambda x: x.strip(), reversed(author['name'].split(','))))
+
 
     if merged_doc['doi'] is not None and merged_doc['doi'][-3:-1] == ".v":
         merged_doc['doi'] = merged_doc['doi'][:-3]
