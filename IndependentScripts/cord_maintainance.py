@@ -617,7 +617,7 @@ def add_useful_fields(mongo_db):
                 suggested_abstract = abstract
                 set_params['suggested_abstract'] = suggested_abstract
 
-
+            # TODO: csv_raw_result also contain abstract, check if it is useful
             if (suggested_abstract is None
                 and 'abstract' in doc['crossref_raw_result']
                 and isinstance(doc['crossref_raw_result']['abstract'], str)
