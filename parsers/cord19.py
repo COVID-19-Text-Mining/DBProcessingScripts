@@ -59,7 +59,7 @@ class CORD19Parser(Parser):
                     name += " " + a['suffix']
                 author['name'] = name
 
-                if a['email'] != "":
+                if a['email'] != "" and a['email'] is not None:
                     author['email'] = a['email'].strip()
                     if author['email'][-1] == ".":
                         author['email'] = author['email'][:-1]
@@ -207,8 +207,9 @@ class CORD19Parser(Parser):
                 abstract = doc['crossref_raw_result']['abstract']
             else:
                 abstract = ""
-                for t in doc['abstract']:
-                    abstract += t['text']
+                if 'abstract' in doc.keys():
+                    for t in doc['abstract']:
+                        abstract += t['text']
         elif 'csv_raw_result' in doc:
             abstract = doc['csv_raw_result']['abstract']
         else:

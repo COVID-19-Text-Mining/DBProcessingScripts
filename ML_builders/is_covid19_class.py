@@ -11,7 +11,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'parsers'))
 from entries import EntriesDocument
 from mongoengine import connect
 from mongoengine.queryset.visitor import Q
-
+import itertools
 from joblib import Parallel, delayed
 
 def init_mongoengine():
@@ -60,13 +60,19 @@ def grouper(n, iterable):
 
 def process_batch(docs):
     init_mongoengine()
+    covid19_classifier = spacy.load("./COVID19_binary_model")
 
+    print("started parsing")
     for doc in docs:
-        if is_covid19_model(doc.to_mongo()) is not None:
-            doc.is_covid19_ML = is_covid19_model(doc.to_mongo()) # returns float value for score from model 
+        try:
+            if is_covid19_model(doc.to_mongo()) is not None:
+                doc.is_covid19_ML = is_covid19_model(doc.to_mongo()) # returns float value for score from model 
 
-        doc.save()        
+                print(doc)
+                doc.save()
+        except:
+            pass
     print("processed")
 
 with Parallel(n_jobs=32) as parallel:
-   parallel(delayed(process_batch)(document) for document in grouper(1000, entries))
+   parallel(delayed(process_batch)(document) for document in grouper(100, entries))
