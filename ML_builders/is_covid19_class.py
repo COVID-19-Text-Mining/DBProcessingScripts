@@ -12,6 +12,8 @@ from entries import EntriesDocument
 from mongoengine import connect
 from mongoengine.queryset.visitor import Q
 
+from joblib import Parallel, delayed
+
 def init_mongoengine():
     connect(db=os.getenv("COVID_DB"),
             name=os.getenv("COVID_DB"),
@@ -48,12 +50,23 @@ def is_covid19_model(entry):
 
 
 covid_count = 0
-for i, entry in enumerate(entries):
+def grouper(n, iterable):
+    it = iter(iterable)
+    while True:
+        chunk = tuple(itertools.islice(it, n))
+        if not chunk:
+            return
+        yield chunk
 
-    if i%1000 == 0:
-        print((i, covid_count))
-    if is_covid19_model(entry.to_mongo()) is not None:
-        entry.is_covid19_ML = is_covid19_model(entry.to_mongo()) # returns float value for score from model 
-    print(entry.is_covid19_ML)
+def process_batch(docs):
+    init_mongoengine()
 
-    entry.save()
+    for doc in docs:
+        if is_covid19_model(doc.to_mongo()) is not None:
+            doc.is_covid19_ML = is_covid19_model(doc.to_mongo()) # returns float value for score from model 
+
+        doc.save()        
+    print("processed")
+
+with Parallel(n_jobs=32) as parallel:
+   parallel(delayed(process_batch)(document) for document in grouper(1000, entries))
