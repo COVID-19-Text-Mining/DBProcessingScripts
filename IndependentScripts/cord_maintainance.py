@@ -507,7 +507,7 @@ def add_useful_fields(mongo_db):
             ):
                 publish_date = doc['crossref_raw_result']['published-print']['date-parts'][0]
             if publish_date is not None:
-                set_params['publish_date'] = publish_date
+                set_params['publish_date'] = parse_date(publish_date)
 
             # reference
             if ('reference' in doc['crossref_raw_result']
@@ -617,7 +617,7 @@ def add_useful_fields(mongo_db):
                 suggested_abstract = abstract
                 set_params['suggested_abstract'] = suggested_abstract
 
-
+            # TODO: csv_raw_result also contain abstract, check if it is useful
             if (suggested_abstract is None
                 and 'abstract' in doc['crossref_raw_result']
                 and isinstance(doc['crossref_raw_result']['abstract'], str)

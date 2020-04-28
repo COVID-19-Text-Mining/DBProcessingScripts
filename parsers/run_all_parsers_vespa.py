@@ -31,14 +31,14 @@ unparsed_collection_list = [UnparsedDimensionsDataDocument,
      UnparsedLensDocument,
      UnparsedGoogleFormSubmissionDocument, 
      UnparsedPHODocument,
+     UnparsedBiorxivDocument, 
+     UnparsedLitCovidCrossrefDocument, 
+     UnparsedLitCovidPubmedXMLDocument,
      UnparsedElsevierDocument,
      UnparsedCORD19CustomDocument,
      UnparsedCORD19CommDocument,
      UnparsedCORD19NoncommDocument, 
      UnparsedCORD19XrxivDocument,
-     UnparsedBiorxivDocument, 
-     UnparsedLitCovidCrossrefDocument, 
-     UnparsedLitCovidPubmedXMLDocument, 
      ]
 
 def parse_document(document):
@@ -57,8 +57,11 @@ def parse_document(document):
             parsed_document = new_doc
         document.parsed_document = parsed_document
         parsed_document.find_missing_ids()
-        parsed_document.save()
-        document.save()
+        try:
+            parsed_document.save()
+            document.save()
+        except:
+            pass
 
 def grouper(n, iterable):
     it = iter(iterable)
