@@ -171,13 +171,19 @@ def parse_date(date_obj):
 
 def parse_date_list(date_list):
     time_parsed = {}
-    if len(date_list) == 3 and len(date_list[0])==4:
+    if (len(date_list) == 3
+        and int(date_list[0]) > 999
+        and int(date_list[0]) < 10000
+    ):
         time_parsed = {
             'year': int(date_list[0]),
             'month': int(date_list[1]),
             'day': int(date_list[2]),
         }
-    if len(date_list) == 2 and len(date_list[0])==4:
+    if (len(date_list) == 2
+        and int(date_list[0]) > 999
+        and int(date_list[0]) < 10000
+    ):
         time_parsed = {
             'year': int(date_list[0]),
             'month': int(date_list[1]),
