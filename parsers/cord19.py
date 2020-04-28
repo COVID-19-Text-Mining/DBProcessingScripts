@@ -35,7 +35,7 @@ class CORD19Parser(Parser):
 
     def _parse_title(self, doc):
         """ Returns the title of a document as a <class 'str'>"""
-        title = doc["suggested_metadata"].get("title", None)
+        title = doc.get("suggested_metadata", {}).get("title", None)
         return clean_title(title)
 
     def _parse_authors(self, doc):
@@ -47,7 +47,7 @@ class CORD19Parser(Parser):
         author_list = []
         # TODO: why this? if "crossref_raw_result" in doc:
         if "crossref_raw_result" in doc:
-            for a in doc['suggested_metadata']['authors']:
+            for a in doc.get("suggested_metadata", {}).get('authors', []):
                 author = dict()
                 name = ""
                 if a['first'] and a['first'] != "":
