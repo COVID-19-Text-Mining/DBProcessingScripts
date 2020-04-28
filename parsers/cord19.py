@@ -35,7 +35,7 @@ class CORD19Parser(Parser):
 
     def _parse_title(self, doc):
         """ Returns the title of a document as a <class 'str'>"""
-        title = doc["metadata"].get("title", None)
+        title = doc.get("suggested_metadata", {}).get("title", None)
         return clean_title(title)
 
     def _parse_authors(self, doc):
@@ -45,15 +45,19 @@ class CORD19Parser(Parser):
         """
 
         author_list = []
+        # TODO: why this? if "crossref_raw_result" in doc:
         if "crossref_raw_result" in doc:
-            for a in doc['metadata']['authors']:
+            for a in doc.get("suggested_metadata", {}).get('authors', []):
                 author = dict()
                 name = ""
                 if a['first'] and a['first'] != "":
+                    author['first_name'] = a['first_name']
                     name += a['first']
                 if len(a['middle']) > 0:
-                    name += " " + " ".join([m for m in a['middle']])
+                    author['middle_name'] = " ".join([m for m in a['middle']])
+                    name += author['middle_name']
                 if a['last'] and a['last'] != "":
+                    author['last_name'] = a['last']
                     name += " " + a['last']
                 if a['suffix'] and a['suffix'] != "":
                     name += " " + a['suffix']
@@ -210,6 +214,8 @@ class CORD19Parser(Parser):
                 if 'abstract' in doc.keys():
                     for t in doc['abstract']:
                         abstract += t['text']
+        if 'suggested_abstract' in doc and len(doc['suggested_abstract']) > 0:
+            abstract = doc['suggested_abstract']
         elif 'csv_raw_result' in doc:
             abstract = doc['csv_raw_result']['abstract']
         else:
@@ -263,8 +269,8 @@ class CORD19Parser(Parser):
         """
         bib_entries = []
         if ('bib_entries' in doc
-                and isinstance(doc['bib_entries'], dict)
-                and len(doc['bib_entries']) > 0
+            and isinstance(doc['bib_entries'], dict)
+            and len(doc['bib_entries']) > 0
         ):
             for bib in doc['bib_entries'].values():
                 bib_entries.append({
