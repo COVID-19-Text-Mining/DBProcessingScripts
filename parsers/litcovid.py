@@ -8,7 +8,7 @@ import xml.etree.ElementTree as ET
 from lxml import etree
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 
-latest_version = 2
+latest_version = 3
 
 class LitCovidCrossrefDocument(VespaDocument):
     meta = {"collection": "Litcovid_crossref_parsed_vespa",
@@ -309,7 +309,7 @@ class LitCovidParser(Parser):
         if 'xml' in doc.keys():
             doc = etree.fromstring(doc['xml'])
             results = doc.xpath("//ArticleId[@IdType = 'pubmed']")
-            pmid = results[0]
+            pmid = results[0].text
             if pmid is not None:
                 return str(pmid)
         return find_remaining_ids(self._parse_doi(doc))['pubmed_id']
