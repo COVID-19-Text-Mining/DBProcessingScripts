@@ -21,7 +21,7 @@ indexes = [
     'is_preprint', 'is_covid19',
     'cord_uid', 'pmcid', 'pubmed_id',
     'who_covidence', 'version', 'copyright',
-    'document_type', 'scopus_eid',
+    'document_type', 'scopus_eid', 'source_display'
 ]
 
 class Author(EmbeddedDocument):

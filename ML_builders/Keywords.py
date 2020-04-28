@@ -42,7 +42,7 @@ def init_mongoengine():
 init_mongoengine()
 
 
-entries = EntriesDocument.objects(Q(keywords=[]))
+entries = EntriesDocument.objects(Q(keywords_ML=[]))
 # In[48]:
 print(len(entries))
 
