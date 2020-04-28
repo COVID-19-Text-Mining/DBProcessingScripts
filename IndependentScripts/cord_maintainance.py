@@ -507,7 +507,7 @@ def add_useful_fields(mongo_db):
             ):
                 publish_date = doc['crossref_raw_result']['published-print']['date-parts'][0]
             if publish_date is not None:
-                set_params['publish_date'] = publish_date
+                set_params['publish_date'] = parse_date(publish_date)
 
             # reference
             if ('reference' in doc['crossref_raw_result']
