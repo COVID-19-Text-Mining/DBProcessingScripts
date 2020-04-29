@@ -63,7 +63,7 @@ class CORD19Parser(Parser):
                     name += " " + a['suffix']
                 author['name'] = name
 
-                if a['email'] != "":
+                if a['email'] != "" and a['email'] is not None:
                     author['email'] = a['email'].strip()
                     if author['email'][-1] == ".":
                         author['email'] = author['email'][:-1]
@@ -205,6 +205,15 @@ class CORD19Parser(Parser):
         """ Returns the abstract of a document as a <class 'str'>.
         Prefers to use abstract from crossref if that is available
         """
+        if "crossref_raw_result" in doc:
+
+            if 'abstract' in doc['crossref_raw_result'].keys() and len(doc['crossref_raw_result']['abstract']) > 0:
+                abstract = doc['crossref_raw_result']['abstract']
+            else:
+                abstract = ""
+                if 'abstract' in doc.keys():
+                    for t in doc['abstract']:
+                        abstract += t['text']
         if 'suggested_abstract' in doc and len(doc['suggested_abstract']) > 0:
             abstract = doc['suggested_abstract']
         elif 'csv_raw_result' in doc:

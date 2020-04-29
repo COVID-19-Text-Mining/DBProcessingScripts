@@ -15,6 +15,13 @@ from dimensions import DimensionsDocument
 from lens_patents import LensPatentDocument
 from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictField, MultipleObjectsReturned, FloatField, StringField
 import re
+import os
+import pymongo
+
+client = pymongo.MongoClient(os.getenv("COVID_HOST"), username=os.getenv("COVID_USER"),
+                             password=os.getenv("COVID_PASS"), authSource=os.getenv("COVID_DB"))
+db = client[os.getenv("COVID_DB")]
+
 
 class EntriesDocument(VespaDocument):
 
@@ -246,11 +253,13 @@ parsed_collections = [
 
 def build_entries():
     i=0
-    def find_matching_doc(doc):
-        return []
+    #def find_matching_doc(doc):
+    #    return []
     for collection in parsed_collections:
         print(collection)
-        docs = [doc for doc in collection.objects]
+        last_entries_builder_sweep = db.metadata.find_one({'data': 'last_entries_builder_sweep_vespa'})['datetime']
+
+        docs = [doc for doc in collection.objects(_bt__gte=last_entries_builder_sweep)]
         for doc in docs:
             i+= 1
             if i%100 == 0:
@@ -281,7 +290,9 @@ def build_entries():
             if insert_doc:
                 insert_doc.source_documents.append(doc)
                 insert_doc._bt = datetime.now()
-                try:
-                    insert_doc.save()
-                except:
-                    pass
+                #
+                insert_doc.save()
+                #except:
+                #    pass
+    db.metadata.update_one({'data': 'last_entries_builder_sweep_vespa'}, {"$set": {"datetime": datetime.now()}})
+

@@ -42,7 +42,7 @@ def init_mongoengine():
 init_mongoengine()
 
 
-entries = EntriesDocument.objects(Q(keywords_ML=[]))
+entries = EntriesDocument.objects(Q(keywords_ML=[]) | Q(keywords_ML__exists=False))
 # In[48]:
 print(len(entries))
 
@@ -95,13 +95,13 @@ for entry in entries:
 
         entry.is_covid19 = is_covid19 or entry.is_covid19
 
-        if (entry_dict['publication_date'] < datetime.datetime(year=2019,month=1,day=1) and entry_dict['has_year']):
+        if 'publication_date' in entry_dict.keys() and (entry_dict['publication_date'] < datetime.datetime(year=2019,month=1,day=1) and entry_dict['has_year']):
             entry.is_covid19 = False
 
     # print(entry.is_covid19)
-    if 'is_covid19_ML' in entry_dict.keys():
-        if entry.is_covid19_ML < 0.5 and entry.is_covid19:
-            from pprint import pprint
-            pprint(entry_dict)
+    #if 'is_covid19_ML' in entry_dict.keys():
+        #if entry.is_covid19_ML < 0.5 and entry.is_covid19:
+            #from pprint import pprint
+            #pprint(entry_dict)
     entry.save()
 
