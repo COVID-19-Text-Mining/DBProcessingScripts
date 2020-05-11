@@ -8,23 +8,15 @@ import xml.etree.ElementTree as ET
 from lxml import etree
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 
-latest_version = 2
+latest_version = 3
 
-class LitCovidCrossrefDocument(VespaDocument):
-    meta = {"collection": "Litcovid_crossref_parsed_vespa",
+class LitCovidDocument(VespaDocument):
+    meta = {"collection": "Litcovid_parsed_vespa",
             "indexes": indexes
     }
 
     latest_version = latest_version
-    unparsed_document = ReferenceField('UnparsedLitCovidCrossrefDocument', required=True)
-
-class LitCovidPubmedDocument(VespaDocument):
-    meta = {"collection": "LitCovid_pubmed_xml_parsed_vespa",
-            "indexes": indexes
-    }
-
-    latest_version = latest_version
-    unparsed_document = ReferenceField('UnparsedLitCovidPubmedXMLDocument', required=True)
+    unparsed_document = ReferenceField('UnparsedLitCovidDocument', required=True)
 
 class LitCovidParser(Parser):
     """
@@ -33,197 +25,132 @@ class LitCovidParser(Parser):
 
     def _parse_doi(self, doc):
         """ Returns the DOI of a document as a <class 'str'>"""
-        if 'xml' in doc.keys():
-            doc = ET.fromstring(doc['xml'])
-            IDs = doc.find('PubmedArticle').find('PubmedData').find('ArticleIdList')
-            if IDs:
-                for id in IDs.iter('ArticleId'):
-                    if id.attrib['IdType'] == 'doi':
-                        return id.text
-        elif type(doc) == dict:
-            return doc['DOI']
-        return None
+        doi_fetch = find_remaining_ids(doc['pmid'])['doi']
+        if doi_fetch != None:
+            return doi_fetch
+        else:
+            try:
+                doi = doc['passages'][0]['infons']['journal'].split('doi:', 1)[1]
+                if doi.startswith(' '):
+                    doi = doi.replace(' ', '')
+                if doi.endswith('.'):
+                    doi = doi[:-1]
+                return doi
+            except:
+                return None
+
 
     def _parse_title(self, doc):
         """ Returns the title of a document as a <class 'str'>"""
-        if 'xml' in doc.keys():
-            doc = ET.fromstring(doc['xml'])
-            article = doc.find('PubmedArticle').find('MedlineCitation').find('Article')
-            return article.find('ArticleTitle').text
-        elif type(doc) == dict:
-            return doc['title']
-        return None
+        return doc['passages'][0]['text']
 
     def _parse_authors(self, doc):
         """ Returns the authors of a document as a <class 'list'> of <class 'dict'>.
         Each element in the authors list should have a "name" field with the author's
         full name (e.g. John Smith or J. Smith) as a <class 'str'>.
         """
-        if 'xml' in doc.keys():
-            doc = ET.fromstring(doc['xml'])
-            article = doc.find('PubmedArticle').find('MedlineCitation').find('Article')
-            authors = article.find('AuthorList')
-            if authors:
-                if authors.attrib['CompleteYN'] == 'Y':
-                    authors_list = []
-                    for author in authors.iter('Author'):
-                        if author.attrib['ValidYN'] == 'Y':
-                            author_info = dict()
-                            if author.find('ForeName') != None and author.find('LastName') != None:
-                                first = author.find('ForeName').text
-                                last = author.find('LastName').text
-                                name = first + last
-                                author_info['name'] = u'{0} {1}'.format(first, last)
-                                authors_list.append(author_info)
-                    return authors_list
-        elif type(doc) == dict:
-            if 'author' in doc:
-                authors = []
-                for author in doc['author']:
-                    if 'given' in author:
-                        name = '{0} {1}'.format(author['given'], author['family'])
-                        first = author['given']
-                        last = author['family']
-                    else:
-                        name = '{0}'.format(author['family'])
-                        last = author['family']
-                    affiliation = author['affiliation']
-                    authors.append({'name' : name})
-                return authors
+        if 'authors' in doc.keys():
+            authors = []
+            for author in doc['authors']:
+                if ' ' in author:
+                    first = '{0}. '.format(author.split(' ', 1)[1])
+                    last = author.split(' ', 1)[0]
+                    author = first + last
+                authors.append(author)
+            return authors
         return None
 
     def _parse_journal(self, doc):
         """ Returns the journal of a document as a <class 'str'>. """
-        if 'xml' in doc.keys():
-            doc = ET.fromstring(doc['xml'])
-            article = doc.find('PubmedArticle').find('MedlineCitation').find('Article')
-            return article.find('Journal').find('Title').text
-        elif type(doc) == dict:
-            if 'container-title' in doc.keys():
-                return doc['container-title']
-        return None
+        if '2020' in doc['journal']:
+            return doc['journal'].split('2020', 1)[0]
+        return doc['journal']
 
     def _parse_issn(self, doc):
         """ Returns the ISSN and (or) EISSN of a document as a <class 'list'> of <class 'str'> """
-        if type(doc) == dict:
-            if 'ISSN' in doc.keys():
-                return doc['ISSN']
         return None
 
     def _parse_journal_short(self, doc):
         """ Returns the shortend journal name of a document as a <class 'str'>, if available.
          e.g. 'Comp. Mat. Sci.' """
-        if type(doc) == dict:
-            if 'short-container-title' in doc.keys():
-                return doc['short-container-title']
         return None
+
+    def _parse_datestring(self, doc):
+        try:
+            if '2020' in doc['passages'][0]['infons']['journal']:
+                temp = doc['passages'][0]['infons']['journal']
+                temp = temp[temp.find('2020'):]
+                semicolon = int(temp.find(';'))
+                period = int(temp.find('.'))
+                colon = int(temp.find(':'))
+                pot_boundaries = [semicolon, period, colon]
+                boundaries = [boundary for boundary in pot_boundaries if boundary >= 0]
+                if boundaries != []:
+                    temp = temp[:min(boundaries)]
+
+                if temp.startswith(' '):
+                    temp = temp[1:]
+                if temp.endswith(' '):
+                    temp = temp[:-1]
+                datestring = ''
+                datelist = temp.split()
+                if len(temp) > 3:
+                   return datestring.join(datelist[:3])
+                else:
+                   return datestring.join(datelist)
+        except:
+            return None
 
     def _parse_publication_date(self, doc):
         """ Returns the publication_date of a document as a <class 'datetime.datetime'>"""
-        if 'xml' in doc.keys():
-            doc = ET.fromstring(doc['xml'])
-            article = doc.find('PubmedArticle').find('MedlineCitation').find('Article')
-            ArticleDate = article.find('ArticleDate')
-            if ArticleDate:
-                if ArticleDate.find('Day') != None:
-                    day = ArticleDate.find('Day').text
-                    month = ArticleDate.find('Month').text
-                    if len(month) == 3:
-                        month = list(calendar.month_abbr).index(month)
-                    year = ArticleDate.find('Year').text
-                    datestring = "{0}-{1}-{2}".format(year, month, day)
-                    return datetime.strptime(datestring, '%Y-%m-%d')
-                elif ArticleDate.find('Month') != None:
-                    month = ArticleDate.find('Month').text
-                    if len(month) == 3:
-                        month = list(calendar.month_abbr).index(month)
-                    year = ArticleDate.find('Year').text
-                    datestring = "{0}, {1}".format(year, month)
-                    return datetime.strptime(datestring, '%Y-%m')
-                elif ArticleDate.find('Year') != None:
-                    year = ArticleDate.find('Year').text
-                    datestring = "{0}".format(year)
+        try:
+            datestring = self._parse_datestring(doc)
+            if datestring.isdigit():
+                if len(datestring) == 8:
+                    return datetime.strptime(datestring, '%Y%m%d')
+                elif len(datestring) == 6:
+                    return datetime.strptime(datestring, '%Y%m')
+                elif len(datestring) == 4:
                     return datetime.strptime(datestring, '%Y')
-        elif type(doc) == dict:
-            formatted_date = ""
-            date = doc['issued']['date-parts']
-            if len(date[0]) == 1 and date[0] != None:
-                datestring = "{0}".format(date[0][0])
-                return datetime.strptime(datestring, '%Y')
-            elif len(date[0]) == 2:
-                datestring = "{0}-{1}".format(date[0][0], date[0][1])
-                return datetime.strptime(datestring, '%Y-%m')
             else:
-                datestring = "{0}-{1}-{2}".format(date[0][0], date[0][1], date[0][2])
-                return datetime.strptime(datestring, '%Y-%m-%d')
-        return self._parse_last_updated(doc)
+                return datetime.strptime(datestring, '%Y%b%d')
+        except:
+            return None
 
     def _parse_has_year(self, doc):
         """ Returns a <class 'bool'> specifying whether a document's year can be trusted."""
-        if 'xml' in doc.keys():
-            doc = ET.fromstring(doc['xml'])
-            article = doc.find('PubmedArticle').find('MedlineCitation').find('Article')
-            return bool(article.find('ArticleDate') and article.find('ArticleDate') is not None and article.find('ArticleDate').find('Year').text)
-        elif type(doc) == dict:
-            return bool('date-parts' in doc['issued'] and len(doc['issued']['date-parts'][0]) >= 1)
-        return False
+        return 'year' in doc['passages'][0]['infons'].keys() and doc['passages'][0]['infons']['year'] != ''
 
     def _parse_has_month(self, doc):
         """ Returns a <class 'bool'> specifying whether a document's month can be trusted."""
-        if 'xml' in doc.keys():
-            doc = ET.fromstring(doc['xml'])
-            article = doc.find('PubmedArticle').find('MedlineCitation').find('Article')
-            return bool(article.find('ArticleDate') and article.find('ArticleDate').find('Month').text)
-        elif type(doc) == dict:
-            return bool('date-parts' in doc['issued'] and len(doc['issued']['date-parts'][0]) >= 2)
-        return False
+        if self._parse_datestring(doc) != None:
+            return len(self._parse_datestring(doc)) >= 6
 
     def _parse_has_day(self, doc):
         """ Returns a <class 'bool'> specifying whether a document's day can be trusted."""
-        if 'xml' in doc.keys():
-            doc = ET.fromstring(doc['xml'])
-            article = doc.find('PubmedArticle').find('MedlineCitation').find('Article')
-            return bool(article.find('ArticleDate') and article.find('ArticleDate').find('Day').text)
-        elif type(doc) == dict:
-            return bool('date-parts' in doc['issued'] and len(doc['issued']['date-parts'][0]) == 3)
-        return False
+        if self._parse_datestring(doc) != None:
+            return len(self._parse_datestring(doc)) >= 8
 
     def _parse_abstract(self, doc):
         """ Returns the abstract of a document as a <class 'str'>"""
-        if 'xml' in doc.keys():
-            doc = ET.fromstring(doc['xml'])
-            article = doc.find('PubmedArticle').find('MedlineCitation').find('Article')
-            if article.find('Abstract') != None:
-                abstract_sections = article.find('Abstract')
-                abstract = ""
-                for section in abstract_sections.iter('AbstractText'):
-                    if 'Label' in section.attrib and section.text != None:
-                        heading = section.attrib['Label'] + ': '
-                        abstract = abstract + heading + section.text + ' '
-                    elif section.text != None:
-                        abstract = abstract + section.text
-                return abstract
-            return None
-        elif type(doc) == dict:
-            if 'abstract' in doc.keys():
-                return doc['abstract']
+        for passage in doc['passages']:
+            type = passage['infons']['type']
+            if type == 'ABSTRACT' or type == 'abstract':
+                if passage['text'] != '':
+                    return passage['text']
         return None
 
 
     def _parse_origin(self, doc):
         """ Returns the origin of the document as a <class 'str'>. Use the mongodb collection
         name for this."""
-        if 'xml' in doc.keys():
-            doc = ET.fromstring(doc['xml'])
-            return "LitCovid_pubmed_xml"
-        elif type(doc) == dict:
-            return "LitCovid_crossref"
+        return 'LitCovid2BioCJSON'
 
     def _parse_source_display(self, doc):
         """ Returns the source of the document as a <class 'str'>. This is what will be
         displayed on the website, so use something people will recognize properly and
         use proper capitalization."""
-        return 'LitCovid'
+        return 'PubMed'
 
     def _parse_last_updated(self, doc):
         """ Returns when the entry was last_updated as a <class 'datetime.datetime'>. Note
@@ -232,7 +159,7 @@ class LitCovidParser(Parser):
 
     def _parse_has_full_text(self, doc):
         """ Returns a <class 'bool'> specifying if we have the full text."""
-        return False
+        return None
 
     def _parse_body_text(self, doc):
         """ Returns the body_text of a document as a <class 'list'> of <class 'dict'>.
@@ -259,16 +186,11 @@ class LitCovidParser(Parser):
 
     def _parse_link(self, doc):
         """ Returns the url of a document as a <class 'str'>"""
-        if type(doc) == dict and 'link' in doc.keys():
-            return doc['link'][0]['URL']
-        elif self._parse_doi(doc):
-            return 'https://doi.org/' + self._parse_doi(doc)
-        elif self._parse_pubmed_id(doc):
-            return "https://www.ncbi.nlm.nih.gov/pubmed/{}".format(self._parse_pubmed_id(doc))
-        from pprint import pprint
-        pprint(doc)
-        pprint(self._parse_pubmed_id(doc))
-        return
+        if self._parse_doi(doc) != None:
+            link = 'https://doi.org/' + self._parse_doi(doc)
+        else:
+            link = 'https://www.ncbi.nlm.nih.gov/pubmed/' + doc['id']
+        return link
 
     def _parse_category_human(self, doc):
         """ Returns the category_human of a document as a <class 'list'> of <class 'str'>"""
@@ -285,7 +207,7 @@ class LitCovidParser(Parser):
     def _parse_is_preprint(self, doc):
         """ Returns a <class 'bool'> specifying whether the document is a preprint.
         If it's not immediately clear from the source it's coming from, return None."""
-        return False
+        return None
 
     def _parse_is_covid19(self, doc):
         """ Returns a <class 'bool'> if we know for sure a document is specifically about COVID-19.
@@ -302,17 +224,14 @@ class LitCovidParser(Parser):
 
     def _parse_pmcid(self, doc):
         """ Returns the pmcid of a document as a <class 'str'>."""
-        return find_remaining_ids(self._parse_doi(doc))['pmcid']
+        try:
+            return doc['pmcid']
+        except:
+            return find_remaining_ids(doc['pmid'])['pmcid']
 
     def _parse_pubmed_id(self, doc):
         """ Returns the PubMed ID of a document as a <class 'str'>."""
-        if 'xml' in doc.keys():
-            doc = etree.fromstring(doc['xml'])
-            results = doc.xpath("//ArticleId[@IdType = 'pubmed']")
-            pmid = results[0]
-            if pmid is not None:
-                return str(pmid)
-        return find_remaining_ids(self._parse_doi(doc))['pubmed_id']
+        return doc['pmid']
 
     def _parse_who_covidence(self, doc):
         """ Returns the who_covidence of a document as a <class 'str'>."""
@@ -335,15 +254,11 @@ class LitCovidParser(Parser):
         """
         Preprocesses an entry from the LitCovid_crossref and LitCovid_pubmed_xml
         collections into a flattened metadata document.
-
         Args:
-
             doc:
-
         Returns:
-
         """
-        return doc
+        return None
 
     def _postprocess(self, doc, parsed_doc):
         """
@@ -352,15 +267,15 @@ class LitCovidParser(Parser):
         """
         return parsed_doc
 
-class UnparsedLitCovidCrossrefDocument(DynamicDocument):
-    meta = {"collection": "LitCovidCrossref"
+class UnparsedLitCovidDocument(DynamicDocument):
+    meta = {"collection": "LitCovid2BioCJSON"
     }
 
     parser = LitCovidParser()
 
-    parsed_class = LitCovidCrossrefDocument
+    parsed_class = LitCovidDocument
 
-    parsed_document = ReferenceField(LitCovidCrossrefDocument, required=False)
+    parsed_document = ReferenceField(LitCovidDocument, required=False)
 
     last_updated = DateTimeField(db_field="last_updated")
 
@@ -368,24 +283,5 @@ class UnparsedLitCovidCrossrefDocument(DynamicDocument):
         parsed_document = self.parser.parse(self.to_mongo())
         parsed_document['_bt'] = datetime.now()
         parsed_document['unparsed_document'] = self
-        return LitCovidCrossrefDocument(**parsed_document)
-
-
-class UnparsedLitCovidPubmedXMLDocument(DynamicDocument):
-    meta = {"collection": "LitCovid_pubmed_xml"
-    }
-
-    parser = LitCovidParser()
-
-    parsed_class = LitCovidPubmedDocument
-
-    parsed_document = ReferenceField(LitCovidPubmedDocument, required=False)
-
-    last_updated = DateTimeField(db_field="last_updated")
-
-    def parse(self):
-        parsed_document = self.parser.parse(self.to_mongo())
-        parsed_document['_bt'] = datetime.now()
-        parsed_document['unparsed_document'] = self
-        return LitCovidPubmedDocument(**parsed_document)
+        return LitCovidDocument(**parsed_document)
 
