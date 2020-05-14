@@ -42,21 +42,91 @@ def doi_existence_stat(mongo_db):
         query_w_csv_tried = col.find({'tried_csv_doi': True})
         query_w_paper_id = col.find({'paper_id': {'$exists': True}})
         query_w_doi_title_empty = col.find({
-            'doi': {'$exists': True},
-            'metadata': {'$exists': True},
-            '$where': 'this.metadata.title.length == 0',
+            '$or': [
+                {
+                    'doi': {'$exists': True},
+                    'metadata.title': {'$exists': False},
+                },
+                {
+                    'doi': {'$exists': True},
+                    'metadata.title': {'$exists': True},
+                    '$where': 'this.metadata.title.length == 0',
+                }
+            ]
         })
         query_w_doi_abs_empty = col.find({
-            'doi': {'$exists': True},
-            'abstract': {'$exists': True, '$ne': None},
-            '$where': 'this.abstract.length == 0',
+            '$or': [
+                {
+                    'doi': {'$exists': True},
+                    'abstract': {'$exists': False},
+                },
+                {
+                    'doi': {'$exists': True},
+                    'abstract': {'$exists': True, '$eq': None},
+                },
+                {
+                    'doi': {'$exists': True},
+                    'abstract': {'$exists': True, '$ne': None},
+                    '$where': 'this.abstract.length == 0',
+                },
+            ]
         })
         query_w_doi_author_empty = col.find({
-            'doi': {'$exists': True},
-            'metadata': {'$exists': True},
-            '$where': 'this.metadata.authors.length == 0',
+            '$or': [
+                {
+                    'doi': {'$exists': True},
+                    'metadata.authors': {'$exists': False},
+                },
+                {
+                    'doi': {'$exists': True},
+                    'metadata.authors': {'$exists': True},
+                    '$where': 'this.metadata.authors.length == 0',
+                }
+            ]
         })
-
+        query_w_doi_suggested_title_empty = col.find({
+            '$or': [
+                {
+                    'doi': {'$exists': True},
+                    'suggested_metadata.title': {'$exists': False},
+                },
+                {
+                    'doi': {'$exists': True},
+                    'suggested_metadata.title': {'$exists': True},
+                    '$where': 'this.suggested_metadata.title.length == 0',
+                }
+            ]
+        })
+        query_w_doi_suggested_abs_empty = col.find({
+            '$or': [
+                {
+                    'doi': {'$exists': True},
+                    'suggested_abstract': {'$exists': False},
+                },
+                {
+                    'doi': {'$exists': True},
+                    'suggested_abstract': {'$exists': True, '$eq': None},
+                },
+                {
+                    'doi': {'$exists': True},
+                    'suggested_abstract': {'$exists': True, '$ne': None},
+                    '$where': 'this.suggested_abstract.length == 0',
+                },
+            ]
+        })
+        query_w_doi_suggested_author_empty = col.find({
+            '$or': [
+                {
+                    'doi': {'$exists': True},
+                    'suggested_metadata.authors': {'$exists': False},
+                },
+                {
+                    'doi': {'$exists': True},
+                    'suggested_metadata.authors': {'$exists': True},
+                    '$where': 'this.suggested_metadata.authors.length == 0',
+                }
+            ]
+        })
         query_wo_doi_no_cr_csv = col.find({
             'doi': {'$exists': False},
             'crossref_raw_result': {'$exists': False},
@@ -91,6 +161,9 @@ def doi_existence_stat(mongo_db):
         print('query_w_doi_title_empty', query_w_doi_title_empty.count())
         print('query_w_doi_abs_empty', query_w_doi_abs_empty.count())
         print('query_w_doi_author_empty', query_w_doi_author_empty.count())
+        print('query_w_doi_suggested_title_empty', query_w_doi_suggested_title_empty.count())
+        print('query_w_doi_suggested_abs_empty', query_w_doi_suggested_abs_empty.count())
+        print('query_w_doi_suggested_author_empty', query_w_doi_suggested_author_empty.count())
         print('query_w_csv_tried', query_w_csv_tried.count())
         print('query_w_paper_id', query_w_paper_id.count())
         print('query_wo_doi_no_cr_csv', query_wo_doi_no_cr_csv.count())
@@ -424,6 +497,51 @@ def add_useful_fields(mongo_db):
             ):
                 set_params['publish_date'] = parse_date(doc['csv_raw_result']['publish_time'].strip())
 
+            # get metadata
+            metadata = None
+            if ('metadata' in doc):
+                metadata = doc['metadata']
+
+            # suggested_metadata
+            suggested_metadata = None
+            if ('suggested_metadata' in doc):
+                suggested_metadata = doc['suggested_metadata']
+            elif metadata is not None:
+                suggested_metadata = metadata
+                set_params['suggested_metadata'] = suggested_metadata
+
+            # abstract
+            # get abstract
+            abstract = None
+            if 'abstract' in doc and len(doc['abstract']) > 0:
+                abstract = ''
+                for fragment in doc['abstract']:
+                    if ('text' in fragment
+                        and isinstance(fragment['text'], str)
+                        and len(fragment['text']) > 0
+                    ):
+                        abstract += fragment['text'].strip() + ' '
+
+                abstract = abstract.strip()
+                if len(abstract) == 0:
+                    abstract = None
+
+            # suggested_abstract
+            suggested_abstract = None
+            if ('suggested_abstract' in doc and len(doc['suggested_abstract']) > 0):
+                suggested_abstract = doc['suggested_abstract']
+            elif abstract is not None:
+                suggested_abstract = abstract
+                set_params['suggested_abstract'] = suggested_abstract
+
+            if (suggested_abstract is None
+                and 'abstract' in doc['csv_raw_result']
+                and isinstance(doc['csv_raw_result']['abstract'], str)
+                and len(doc['csv_raw_result']['abstract']) > 0
+            ):
+                suggested_abstract = doc['csv_raw_result']['abstract']
+                set_params['suggested_abstract'] = suggested_abstract
+
             # update doc
             if len(set_params) > 0:
                 try:
@@ -554,12 +672,8 @@ def add_useful_fields(mongo_db):
                     and len(doc['crossref_raw_result']['title']) > 0
                     and len(doc['crossref_raw_result']['title'][0]) > 0
                 ):
-                    update_counter['title'] += 1
                     suggested_metadata['title'] = doc['crossref_raw_result']['title'][0]
                     set_params['suggested_metadata'] = suggested_metadata
-
-                    if 'doi' in doc:
-                        update_counter['title_doi'] += 1
 
             # author
             if suggested_metadata is not None:
@@ -575,7 +689,6 @@ def add_useful_fields(mongo_db):
                     and isinstance(doc['crossref_raw_result']['author'], list)
                     and len(doc['crossref_raw_result']['author']) > 0
                 ):
-                    update_counter['author'] += 1
                     suggested_metadata['authors'] = []
                     for x in doc['crossref_raw_result']['author']:
                         if not ('given' in x and 'family' in x):
@@ -589,9 +702,8 @@ def add_useful_fields(mongo_db):
                             'email': '',
                         })
                     set_params['suggested_metadata'] = suggested_metadata
+                    print("author suggested: ", doc['crossref_raw_result']['author'])
                     pprint(suggested_metadata)
-                    if 'doi' in doc:
-                        update_counter['authors_doi'] += 1
 
             # abstract
             # get abstract
@@ -617,17 +729,13 @@ def add_useful_fields(mongo_db):
                 suggested_abstract = abstract
                 set_params['suggested_abstract'] = suggested_abstract
 
-            # TODO: csv_raw_result also contain abstract, check if it is useful
             if (suggested_abstract is None
                 and 'abstract' in doc['crossref_raw_result']
                 and isinstance(doc['crossref_raw_result']['abstract'], str)
                 and len(doc['crossref_raw_result']['abstract']) > 0
             ):
-                update_counter['abstract'] += 1
                 suggested_abstract = doc['crossref_raw_result']['abstract']
                 set_params['suggested_abstract'] = suggested_abstract
-                if 'doi' in doc:
-                    update_counter['abstract_doi'] += 1
 
             # update doc
             if len(set_params) > 0:
