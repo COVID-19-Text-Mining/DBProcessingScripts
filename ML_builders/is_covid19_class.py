@@ -25,17 +25,19 @@ def init_mongoengine():
 
 init_mongoengine()
 
-covid19_classifier = spacy.load("./COVID19_binary_model")
+covid19_classifier = spacy.load("./COVID19_Binary_430_2")
 
 # In[35]:
 
-entries = EntriesDocument.objects((Q(body_text__not__size=0) | Q(abstract__ne=None)) & Q(is_covid19_ML__exists=False))
+entries = [d for d in EntriesDocument.objects(Q(is_covid19_ML=None) | Q(is_covid19_ML__exists=False))]
 # In[48]:
 
 def is_covid19_model(entry):
     # Returns float equal to relevancy score given by spacy model (between 0-1)
     if 'abstract' in entry.keys() and type(entry['abstract']) is str: # run model over abstract
+        #print(True)
         doc_score = covid19_classifier(entry['abstract']).cats
+        #print(doc_score)
         return float(doc_score['COVID19'])
     elif 'body_text' in entry.keys() and type(entry['body_text']) is list and len(entry['body_text']) > 0: # run model over body text if no abstract
         doc_scores = []
@@ -60,19 +62,23 @@ def grouper(n, iterable):
 
 def process_batch(docs):
     init_mongoengine()
-    covid19_classifier = spacy.load("./COVID19_binary_model")
+    covid19_classifier = spacy.load("./COVID19_Binary_430_2")
 
     print("started parsing")
     for doc in docs:
         try:
-            if is_covid19_model(doc.to_mongo()) is not None:
-                doc.is_covid19_ML = is_covid19_model(doc.to_mongo()) # returns float value for score from model 
+            is_covid19 = is_covid19_model(doc.to_mongo()) 
+            if is_covid19 is not None:
+                doc.is_covid19_ML = is_covid19 # returns float value for score from model 
 
                 print(doc)
+                doc.synced = False
                 doc.save()
         except:
             pass
     print("processed")
 
+#for document in grouper(100, entries):
+#    process_batch(document)
 with Parallel(n_jobs=32) as parallel:
-   parallel(delayed(process_batch)(document) for document in grouper(100, entries))
+   parallel(delayed(process_batch)(document) for document in grouper(500, entries))

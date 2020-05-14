@@ -309,9 +309,11 @@ class LitCovidParser(Parser):
         if 'xml' in doc.keys():
             doc = etree.fromstring(doc['xml'])
             results = doc.xpath("//ArticleId[@IdType = 'pubmed']")
-            pmid = results[0]
+            pmid = results[0].text
+            #print(results, str(pmid))
             if pmid is not None:
                 return str(pmid)
+        #print("remaining_ids")
         return find_remaining_ids(self._parse_doi(doc))['pubmed_id']
 
     def _parse_who_covidence(self, doc):
