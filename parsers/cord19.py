@@ -51,7 +51,7 @@ class CORD19Parser(Parser):
                 author = dict()
                 name = ""
                 if a['first'] and a['first'] != "":
-                    author['first_name'] = a['first_name']
+                    author['first_name'] = a['first']
                     name += a['first']
                 if len(a['middle']) > 0:
                     author['middle_name'] = " ".join([m for m in a['middle']])

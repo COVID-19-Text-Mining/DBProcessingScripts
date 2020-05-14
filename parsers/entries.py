@@ -13,7 +13,7 @@ from cord19 import CORD19Document
 from pho import PHODocument
 from dimensions import DimensionsDocument
 from lens_patents import LensPatentDocument
-from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictField, MultipleObjectsReturned, FloatField, StringField
+from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictField, MultipleObjectsReturned, FloatField, StringField, BooleanField
 import re
 import os
 import pymongo
@@ -61,7 +61,7 @@ class EntriesDocument(VespaDocument):
         }
     },
     ]
-    meta = {"collection": "entries_vespa",
+    meta = {"collection": "entries_vespa2",
             "indexes": indexes,
             "allow_inheritance": False
     }    
@@ -70,41 +70,32 @@ class EntriesDocument(VespaDocument):
     embeddings = DictField(default={})
     is_covid19_ML = FloatField()
     keywords_ML = ListField(StringField(required=True), default=lambda: [])
+    synced = BooleanField(default=False)
 
 entries_keys = [k for k in EntriesDocument._fields.keys() if (k[0] != "_")]
 
 def find_matching_doc(doc):
-    if doc['document_type'] in ['patent', 'clinical_trial']:
-        #Clinical trials and patents don't have the normal ids - use titles instead
-        title = doc['title'] if doc['title'] is not None and doc['title'] != "" else "________not_a_real_title_____"
-        try:
-            matching_doc = EntriesDocument.objects(Q(title=title)).no_cache().get()
-            return [matching_doc]
-        except DoesNotExist:
-            return []
-        except MultipleObjectsReturned:
-            return [d for d in EntriesDocument.objects(Q(title=title)).no_cache()]
 
-    else:
-        #This could definitely be better but I can't figure out how to mangle mongoengine search syntax in the right way
-        doi = doc['doi'] if (doc['doi'] is not None) and (doc['doi'] != "") else "____"
-        pubmed_id = doc['pubmed_id'] if doc['pubmed_id'] is not None else "____"
-        pmcid = doc['pmcid'] if doc['pmcid'] is not None else "____"
-        scopus_eid = doc['scopus_eid'] if doc['scopus_eid'] is not None else "____"
+    #This could definitely be better but I can't figure out how to mangle mongoengine search syntax in the right way
+    doi = doc['doi'] if (doc['doi'] is not None) and (doc['doi'] != "") else "____"
+    pubmed_id = doc['pubmed_id'] if doc['pubmed_id'] is not None else "____"
+    pmcid = doc['pmcid'] if doc['pmcid'] is not None else "____"
+    scopus_eid = doc['scopus_eid'] if doc['scopus_eid'] is not None else "____"
+    title = doc['title'] if doc['title'] is not None and doc['title'] != "" else "________not_a_real_title_____"
 
-        if doi[-3:-1] == ".v":
-            doi = doi[:-3]
+    if doi[-3:-1] == ".v":
+        doi = doi[:-3]
 
-        pattern = re.compile("{}(\.v[0-9])?".format(re.escape(doi)))
+    pattern = re.compile("{}(\.v[0-9])?".format(re.escape(doi)))
 
-        try:
-            matching_doc = EntriesDocument.objects(Q(doi=pattern) | Q(pubmed_id=pubmed_id) | Q(pmcid=pmcid) | Q(scopus_eid=scopus_eid)).no_cache().get()
-            return [matching_doc]
-        except DoesNotExist:
-            pass
-        except MultipleObjectsReturned:
-            return [d for d in EntriesDocument.objects(Q(doi=pattern) | Q(pubmed_id=pubmed_id) | Q(pmcid=pmcid) | Q(scopus_eid=scopus_eid)).no_cache()]
-        return []
+    try:
+        matching_doc = EntriesDocument.objects(Q(doi=pattern) | Q(pubmed_id=pubmed_id) | Q(pmcid=pmcid) | Q(scopus_eid=scopus_eid) | Q(title=title)).no_cache().get()
+        return [matching_doc]
+    except DoesNotExist:
+        pass
+    except MultipleObjectsReturned:
+        return [d for d in EntriesDocument.objects(Q(doi=pattern) | Q(pubmed_id=pubmed_id) | Q(pmcid=pmcid) | Q(scopus_eid=scopus_eid) | Q(title=title)).no_cache()]
+    return []
 
 # -*- coding: utf-8 -*-
 """
@@ -237,6 +228,10 @@ def merge_documents(high_priority_doc, low_priority_doc):
     if merged_doc['doi'] is not None and merged_doc['doi'][-3:-1] == ".v":
         merged_doc['doi'] = merged_doc['doi'][:-3]
 
+    if merged_doc['publication_date'] is not None:
+        if merged_doc['publication_date'] > datetime.now():
+            merged_doc['publication_date'] = high_priority_doc['_bt']
+        
     return merged_doc
 
 parsed_collections = [
@@ -247,8 +242,8 @@ parsed_collections = [
     PHODocument,
     LitCovidCrossrefDocument,
     LitCovidPubmedDocument,
-    CORD19Document,
-    ElsevierDocument,
+#    CORD19Document,
+#    ElsevierDocument,
 ]
 
 def build_entries():
@@ -260,14 +255,14 @@ def build_entries():
         last_entries_builder_sweep = db.metadata.find_one({'data': 'last_entries_builder_sweep_vespa'})['datetime']
 
         docs = [doc for doc in collection.objects(_bt__gte=last_entries_builder_sweep)]
+        #docs = [doc for doc in collection.objects()]
         for doc in docs:
             i+= 1
             if i%100 == 0:
                 print(i)
-            id_fields = [doc['doi'], 
-            doc['pubmed_id'],
-            doc['pmcid'],
-            doc['scopus_eid'],
+            id_fields = [doc.to_mongo().get('doi', None), 
+            doc.to_mongo().get('pubmed_id', None),
+            doc.to_mongo().get('pmcid', None),
             ]
             matching_doc = find_matching_doc(doc)
             if len(matching_doc) == 1:
@@ -290,9 +285,10 @@ def build_entries():
             if insert_doc:
                 insert_doc.source_documents.append(doc)
                 insert_doc._bt = datetime.now()
-                #
-                insert_doc.save()
-                #except:
-                #    pass
+                insert_doc.synced = False
+                try:
+                    insert_doc.save()
+                except:
+                    pass
     db.metadata.update_one({'data': 'last_entries_builder_sweep_vespa'}, {"$set": {"datetime": datetime.now()}})
 

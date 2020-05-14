@@ -48,9 +48,11 @@ def parse_document(document):
     except DoesNotExist:
         parsed_document = None
 
+    #print(parsed_document)
     if parsed_document is None or document.last_updated > parsed_document._bt or parsed_document.version < parsed_document.latest_version:
         if parsed_document is None:
-           parsed_document = document.parse()
+            #print("parsing")
+            parsed_document = document.parse()
         else:
             new_doc = document.parse()
             parsed_document.delete()
@@ -76,10 +78,11 @@ def parse_documents(documents):
     # print("parsing")
     for document in documents:
         parse_document(document)
+        #print(document)
     print('parsed')
 
 
-#with Parallel(n_jobs=32) as parallel:
-#    parallel(delayed(parse_documents)(document) for collection in unparsed_collection_list for document in grouper(500, collection.objects))
+with Parallel(n_jobs=32) as parallel:
+    parallel(delayed(parse_documents)(document) for collection in unparsed_collection_list for document in grouper(500, collection.objects))
 
 build_entries()

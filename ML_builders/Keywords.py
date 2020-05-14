@@ -103,5 +103,6 @@ for entry in entries:
         #if entry.is_covid19_ML < 0.5 and entry.is_covid19:
             #from pprint import pprint
             #pprint(entry_dict)
+    entry.synced = False
     entry.save()
 
