@@ -525,10 +525,11 @@ def update_BioRxivMedRxivChinaxiv_entries(mongo_db):
 
 def update_studies_summary_entries(mongo_db):
     from IndependentScripts.common_utils import query_crossref
-    from IndependentScripts.common_utils import get_mongo_db, parse_date, parse_names, query_crossref, text_similarity_by_char
-    from IndependentScripts.common_utils import LEAST_TITLE_LEN, FIVE_PERCENT_TITLE_LEN, LEAST_TITLE_SIMILARITY, \
-        IGNORE_BEGIN_END_TITLE_SIMILARITY
-    from IndependentScripts.common_utils import LEAST_ABS_LEN, FIVE_PERCENT_ABS_LEN, LEAST_ABS_SIMILARITY, IGNORE_BEGIN_END_ABS_SIMILARITY
+    from IndependentScripts.common_utils import text_similarity_by_char
+    from IndependentScripts.common_utils import LEAST_TITLE_LEN
+    from IndependentScripts.common_utils import FIVE_PERCENT_TITLE_LEN
+    from IndependentScripts.common_utils import LEAST_TITLE_SIMILARITY
+    from IndependentScripts.common_utils import IGNORE_BEGIN_END_TITLE_SIMILARITY
 
     def clean_title(title):
         clean_title = title
@@ -539,7 +540,9 @@ def update_studies_summary_entries(mongo_db):
     col_name = 'CDCN_studies_summary'
     col = mongo_db[col_name]
     found_entries_cr = set()
-    query = col.find({}, )
+    query = col.find({
+        'doi': {'$exists': False}
+    })
 
 
     print('query.count()', query.count())
@@ -591,17 +594,21 @@ def update_studies_summary_entries(mongo_db):
             if len(item['title']) != 1:
                 print("len(item['title']) != 1", len(item['title']))
             cr_title = clean_title(item['title'][0])
+            doc_title = clean_title(doc['Full citations'])
+            doc_title = doc_title.split('.')
+            doc_title = sorted(doc_title, key=len, reverse=True)
+            doc_title = doc_title[0]
             similarity = text_similarity_by_char(
                 cr_title,
-                doc['Full citations'],
+                doc_title,
                 enable_ignore_begin_end=True,
                 ignore_begin_end_text_len=FIVE_PERCENT_TITLE_LEN,
-                ignore_begin_end_similarity=IGNORE_BEGIN_END_TITLE_SIMILARITY,
+                ignore_begin_end_similarity=0.6,
             )
-
+            
             if (len(cr_title) > LEAST_TITLE_LEN
                 and len(doc['Full citations']) > LEAST_TITLE_LEN
-                and similarity > LEAST_TITLE_SIMILARITY):
+                and similarity > 0.85):
                 matched_item = item
                 col.find_one_and_update(
                     {
@@ -625,9 +632,9 @@ if __name__ == '__main__':
 
     # insert_drugs_summary(mongo_db=mongo_db, excel_path='../rsc/CDCN_CORONA.xlsx')
     # insert_extracted_studies_summary(mongo_db=mongo_db, excel_path='../rsc/CDCN_CORONA.xlsx')
-    insert_extracted_PubMed(mongo_db=mongo_db, excel_path='../rsc/CDCN_CORONA.xlsx')
+    # insert_extracted_PubMed(mongo_db=mongo_db, excel_path='../rsc/CDCN_CORONA.xlsx')
     # insert_extracted_BioRxivMedRxivChinaxiv(mongo_db=mongo_db, excel_path='../rsc/CDCN_CORONA.xlsx')
 
     # update_PubMed_entries(mongo_db)
     # update_BioRxivMedRxivChinaxiv_entries(mongo_db)
-    # update_studies_summary_entries(mongo_db)
+    update_studies_summary_entries(mongo_db)
