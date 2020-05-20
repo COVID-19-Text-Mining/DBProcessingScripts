@@ -75,8 +75,8 @@ def text_similarity_by_char(text_1,
     :return:
     """
 
-    ref_len_ = max(float(len(text_1)), float(len(text_2)), 1.0)
-    max(float(len(text_2)), 1.0)
+    ori_len_1 = max(float(len(text_1)), 1.0)
+    ori_len_2 = max(float(len(text_2)), 1.0)
     # find the same strings
     if not quick_mode:
         same_char = difflib.SequenceMatcher(None, text_1, text_2).get_matching_blocks()
@@ -90,8 +90,8 @@ def text_similarity_by_char(text_1,
             text_2 = text_2[same_char[0].b: same_char[-1].b + same_char[-1].size]
             if (len(text_1) > ignore_begin_end_text_len
                 and len(text_2) > ignore_begin_end_text_len
-                and len(text_1)/max(len(text_1), 1.0) > ignore_begin_end_similarity
-                and len(text_2)/max(len(text_2), 1.0) > ignore_begin_end_similarity
+                and len(text_1)/ori_len_1 > ignore_begin_end_similarity
+                and len(text_2)/ori_len_2 > ignore_begin_end_similarity
             ):
                 same_char_2 = sum(
                     [tmp_block.size for tmp_block in same_char]
