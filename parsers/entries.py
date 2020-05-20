@@ -61,7 +61,7 @@ class EntriesDocument(VespaDocument):
         }
     },
     ]
-    meta = {"collection": "entries_vespa2",
+    meta = {"collection": "entries_vespa",
             "indexes": indexes,
             "allow_inheritance": False
     }    

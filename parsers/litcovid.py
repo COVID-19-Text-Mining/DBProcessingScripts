@@ -193,7 +193,7 @@ class LitCovidParser(Parser):
         if self._parse_doi(doc) != None:
             link = 'https://doi.org/' + self._parse_doi(doc)
         else:
-            link = 'https://www.ncbi.nlm.nih.gov/pubmed/' + doc['pmid']
+            link = 'https://www.ncbi.nlm.nih.gov/pubmed/{}'.format(doc['pmid'])
         return link
 
     def _parse_category_human(self, doc):
