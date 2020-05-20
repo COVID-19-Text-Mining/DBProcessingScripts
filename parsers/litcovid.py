@@ -28,16 +28,7 @@ class LitCovidParser(Parser):
         doi_fetch = find_remaining_ids(str(doc['pmid'])).get('doi', None)
         if doi_fetch != None:
             return doi_fetch
-        else:
-            try:
-                doi = doc['passages'][0]['infons']['journal'].split('doi:', 1)[1]
-                if doi.startswith(' '):
-                    doi = doi.replace(' ', '')
-                if doi.endswith('.'):
-                    doi = doi[:-1]
-                return doi
-            except:
-                return None
+        return None
 
 
     def _parse_title(self, doc):
