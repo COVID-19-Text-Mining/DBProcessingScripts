@@ -703,7 +703,7 @@ def add_useful_fields(mongo_db):
                         })
                     set_params['suggested_metadata'] = suggested_metadata
                     print("author suggested: ", doc['crossref_raw_result']['author'])
-                    pprint(suggested_metadata)
+                   # pprint(suggested_metadata)
 
             # abstract
             # get abstract

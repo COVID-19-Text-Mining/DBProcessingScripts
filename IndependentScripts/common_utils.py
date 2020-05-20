@@ -327,6 +327,7 @@ def query_crossref_by_doi(doi, verbose=True):
         )
     try:
         query_results = query_results.json()
+    #print(query_results)
     except Exception as e:
         raise ValueError(
             'Query result from crossref cannot be jsonified when searching doi: {}!'.format(doi)
