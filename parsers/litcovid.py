@@ -8,7 +8,7 @@ import xml.etree.ElementTree as ET
 from lxml import etree
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 
-latest_version = 3
+latest_version = 5
 
 class LitCovidDocument(VespaDocument):
     meta = {"collection": "Litcovid_parsed_vespa",
@@ -25,7 +25,7 @@ class LitCovidParser(Parser):
 
     def _parse_doi(self, doc):
         """ Returns the DOI of a document as a <class 'str'>"""
-        doi_fetch = find_remaining_ids(doc['pmid'])['doi']
+        doi_fetch = find_remaining_ids(doc['pmid']).get('doi', None)
         if doi_fetch != None:
             return doi_fetch
         else:
@@ -52,11 +52,15 @@ class LitCovidParser(Parser):
         if 'authors' in doc.keys():
             authors = []
             for author in doc['authors']:
+                a = {}
                 if ' ' in author:
                     first = '{0}. '.format(author.split(' ', 1)[1])
                     last = author.split(' ', 1)[0]
-                    author = first + last
-                authors.append(author)
+                    a['first_name'] = first
+                    a['last_name'] = last
+                else:
+                    a['name'] = author
+                authors.append(a)
             return authors
         return None
 
@@ -258,7 +262,7 @@ class LitCovidParser(Parser):
             doc:
         Returns:
         """
-        return None
+        return doc
 
     def _postprocess(self, doc, parsed_doc):
         """

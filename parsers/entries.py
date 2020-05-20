@@ -7,7 +7,7 @@ import requests
 from utils import clean_title, find_cited_by, find_references
 from elsevier import ElsevierDocument
 from google_form_submissions import GoogleFormSubmissionDocument
-from litcovid import LitCovidCrossrefDocument, LitCovidPubmedDocument
+from litcovid import LitCovidDocument
 from biorxiv import BiorxivDocument
 from cord19 import CORD19Document
 from pho import PHODocument
@@ -240,10 +240,9 @@ parsed_collections = [
     BiorxivDocument,
     GoogleFormSubmissionDocument,
     PHODocument,
-    LitCovidCrossrefDocument,
-    LitCovidPubmedDocument,
-#    CORD19Document,
-#    ElsevierDocument,
+    LitCovidDocument,
+    CORD19Document,
+    ElsevierDocument,
 ]
 
 def build_entries():

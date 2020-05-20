@@ -1,7 +1,7 @@
 from mongoengine import connect, DoesNotExist
 from elsevier import UnparsedElsevierDocument
 from google_form_submissions import UnparsedGoogleFormSubmissionDocument
-from litcovid import UnparsedLitCovidCrossrefDocument, UnparsedLitCovidPubmedXMLDocument
+from litcovid import UnparsedLitCovidDocument
 from biorxiv import UnparsedBiorxivDocument
 from cord19 import UnparsedCORD19CustomDocument, UnparsedCORD19CommDocument, UnparsedCORD19NoncommDocument, UnparsedCORD19XrxivDocument
 from pho import UnparsedPHODocument
@@ -32,8 +32,7 @@ unparsed_collection_list = [UnparsedDimensionsDataDocument,
      UnparsedGoogleFormSubmissionDocument, 
      UnparsedPHODocument,
      UnparsedBiorxivDocument, 
-     UnparsedLitCovidCrossrefDocument, 
-     UnparsedLitCovidPubmedXMLDocument,
+     UnparsedLitCovidDocument, 
      UnparsedElsevierDocument,
      UnparsedCORD19CustomDocument,
      UnparsedCORD19CommDocument,
@@ -82,6 +81,11 @@ def parse_documents(documents):
     print('parsed')
 
 
+#for collection in unparsed_collection_list:
+#    for document in collection.objects():
+#        from pprint import pprint
+#        pprint(document.id)
+#        parse_documents([document])
 with Parallel(n_jobs=32) as parallel:
     parallel(delayed(parse_documents)(document) for collection in unparsed_collection_list for document in grouper(500, collection.objects))
 
