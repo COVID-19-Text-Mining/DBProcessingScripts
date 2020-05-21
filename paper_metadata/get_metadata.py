@@ -5,6 +5,14 @@ from parser_crossref import CrossrefParser
 crossref_parser = CrossrefParser()
 
 def get_api_metadata_by_doi(doi):
+    """
+    get metadata of a paper by it doi.
+    Query all the APIs such as crossref, scopes, etc.
+    If not found, return None.
+
+    :param doi: (str) doi of paper
+    :return: (dict or None) metadata of the paper such as title, authors, etc.
+    """
     result = None
     try:
         query_result = query_crossref_by_doi(doi)
@@ -17,6 +25,15 @@ def get_api_metadata_by_doi(doi):
 
 
 def get_db_metadata_by_doi(mongo_db, doi):
+    """
+    get metadata of a paper by it doi.
+    Query existing metadata in COVID database.
+    If not found, return None.
+
+    :param mongo_db: (object) a mongo_db object to fetch data from COVID database
+    :param doi: (str) doi of paper
+    :return: (dict or None) metadata of the paper such as title, authors, etc.
+    """
     result = None
 
     col_name = 'crossref_metadata'
@@ -26,8 +43,19 @@ def get_db_metadata_by_doi(mongo_db, doi):
         result = crossref_parser.parse(doc['crossref_raw_result'])
     return result
 
+# TODO: have a function get_metadata_by_pmid()
 
 def get_metadata_by_doi(mongo_db, doi):
+    """
+    get metadata of a paper by it doi.
+    First query existing metadata in COVID database.
+    If not found, query API directly.
+    If still not found, return None.
+
+    :param mongo_db: (object) a mongo_db object to fetch data from COVID database
+    :param doi: (str) doi of paper
+    :return: (dict or None) metadata of the paper such as title, authors, etc.
+    """
 
     # TODO: need a schema and auto type here
     result = None
