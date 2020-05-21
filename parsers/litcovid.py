@@ -25,19 +25,10 @@ class LitCovidParser(Parser):
 
     def _parse_doi(self, doc):
         """ Returns the DOI of a document as a <class 'str'>"""
-        doi_fetch = find_remaining_ids(doc['pmid']).get('doi', None)
+        doi_fetch = find_remaining_ids(str(doc['pmid'])).get('doi', None)
         if doi_fetch != None:
             return doi_fetch
-        else:
-            try:
-                doi = doc['passages'][0]['infons']['journal'].split('doi:', 1)[1]
-                if doi.startswith(' '):
-                    doi = doi.replace(' ', '')
-                if doi.endswith('.'):
-                    doi = doi[:-1]
-                return doi
-            except:
-                return None
+        return None
 
 
     def _parse_title(self, doc):
@@ -193,7 +184,7 @@ class LitCovidParser(Parser):
         if self._parse_doi(doc) != None:
             link = 'https://doi.org/' + self._parse_doi(doc)
         else:
-            link = 'https://www.ncbi.nlm.nih.gov/pubmed/{}'.format(doc['pmid'])
+            link = 'https://www.ncbi.nlm.nih.gov/pubmed/{}'.format(str(doc['pmid']))
         return link
 
     def _parse_category_human(self, doc):
@@ -231,11 +222,11 @@ class LitCovidParser(Parser):
         try:
             return doc['pmcid']
         except:
-            return find_remaining_ids(doc['pmid'])['pmcid']
+            return find_remaining_ids(str(doc['pmid']))['pmcid']
 
     def _parse_pubmed_id(self, doc):
         """ Returns the PubMed ID of a document as a <class 'str'>."""
-        return doc['pmid']
+        return str(doc['pmid'])
 
     def _parse_who_covidence(self, doc):
         """ Returns the who_covidence of a document as a <class 'str'>."""
