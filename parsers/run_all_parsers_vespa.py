@@ -7,6 +7,7 @@ from cord19 import UnparsedCORD19CustomDocument, UnparsedCORD19CommDocument, Unp
 from pho import UnparsedPHODocument
 from dimensions import UnparsedDimensionsDataDocument, UnparsedDimensionsPubDocument, UnparsedDimensionsTrialDocument
 from lens_patents import UnparsedLensDocument
+from chemrxiv import UnparsedChemrxivDocument
 from datetime import datetime
 from joblib import Parallel, delayed
 import os
@@ -25,19 +26,21 @@ def init_mongoengine():
 
 init_mongoengine()
 
-unparsed_collection_list = [UnparsedDimensionsDataDocument,
-     UnparsedDimensionsPubDocument,
-     UnparsedDimensionsTrialDocument,
-     UnparsedLensDocument,
-     UnparsedGoogleFormSubmissionDocument, 
-     UnparsedPHODocument,
-     UnparsedBiorxivDocument, 
+unparsed_collection_list = [
+     UnparsedChemrxivDocument,
+     # UnparsedDimensionsDataDocument,
+     # UnparsedDimensionsPubDocument,
+     # UnparsedDimensionsTrialDocument,
+     # UnparsedLensDocument,
+     # UnparsedGoogleFormSubmissionDocument, 
+     # UnparsedPHODocument,
+     # UnparsedBiorxivDocument, 
      UnparsedLitCovidDocument, 
-     UnparsedElsevierDocument,
-     UnparsedCORD19CustomDocument,
-     UnparsedCORD19CommDocument,
-     UnparsedCORD19NoncommDocument, 
-     UnparsedCORD19XrxivDocument,
+     # UnparsedElsevierDocument,
+     # UnparsedCORD19CustomDocument,
+     # UnparsedCORD19CommDocument,
+     # UnparsedCORD19NoncommDocument, 
+     # UnparsedCORD19XrxivDocument,
      ]
 
 def parse_document(document):
@@ -86,7 +89,7 @@ def parse_documents(documents):
 #        from pprint import pprint
 #        pprint(document.id)
 #        parse_documents([document])
-with Parallel(n_jobs=32) as parallel:
-    parallel(delayed(parse_documents)(document) for collection in unparsed_collection_list for document in grouper(500, collection.objects))
+with Parallel(n_jobs=12) as parallel:
+   parallel(delayed(parse_documents)(document) for collection in unparsed_collection_list for document in grouper(100, collection.objects))
 
-build_entries()
+# build_entries()

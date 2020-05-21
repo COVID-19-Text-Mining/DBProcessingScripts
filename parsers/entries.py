@@ -13,6 +13,7 @@ from cord19 import CORD19Document
 from pho import PHODocument
 from dimensions import DimensionsDocument
 from lens_patents import LensPatentDocument
+from chemrxiv import ChemrxivDocument
 from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictField, MultipleObjectsReturned, FloatField, StringField, BooleanField
 import re
 import os
@@ -235,12 +236,13 @@ def merge_documents(high_priority_doc, low_priority_doc):
     return merged_doc
 
 parsed_collections = [
-    DimensionsDocument,
-    LensPatentDocument,
-    BiorxivDocument,
-    GoogleFormSubmissionDocument,
-    PHODocument,
-    LitCovidDocument,
+    ChemrxivDocument,
+    #DimensionsDocument,
+    #LensPatentDocument,
+    #BiorxivDocument,
+    #GoogleFormSubmissionDocument,
+    #PHODocument,
+    #LitCovidDocument,
     CORD19Document,
     ElsevierDocument,
 ]
@@ -253,8 +255,9 @@ def build_entries():
         print(collection)
         last_entries_builder_sweep = db.metadata.find_one({'data': 'last_entries_builder_sweep_vespa'})['datetime']
 
-        docs = [doc for doc in collection.objects(_bt__gte=last_entries_builder_sweep)]
+        #docs = [doc for doc in collection.objects(_bt__gte=last_entries_builder_sweep)]
         #docs = [doc for doc in collection.objects()]
+        docs = collection.objects()
         for doc in docs:
             i+= 1
             if i%100 == 0:
