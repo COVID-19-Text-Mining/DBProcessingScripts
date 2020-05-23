@@ -34,21 +34,20 @@ entries = [d for d in EntriesDocument.objects(Q(is_covid19_ML=None) | Q(is_covid
 
 def is_covid19_model(entry):
     # Returns float equal to relevancy score given by spacy model (between 0-1)
+    title_score = abs_score = body_score = 0 # initialize scores to zero
+    if 'title' in entry.keys() and type(entry['title']) is str: #run model over title
+        title_score = float(covid19_classifier(entry['title']).cats['COVID19'])
     if 'abstract' in entry.keys() and type(entry['abstract']) is str: # run model over abstract
-        #print(True)
-        doc_score = covid19_classifier(entry['abstract']).cats
-        #print(doc_score)
-        return float(doc_score['COVID19'])
+        abs_score = float(covid19_classifier(entry['abstract']).cats['COVID19'])
     elif 'body_text' in entry.keys() and type(entry['body_text']) is list and len(entry['body_text']) > 0: # run model over body text if no abstract
-        doc_scores = []
+        body_scores = []
         for section in entry['body_text']:
             if 'text' in section.keys():
-                doc_score = covid19_classifier(section['text']).cats['COVID19']
-                doc_scores.append(doc_score)
-            else:
-                return
-        return(max(doc_scores)) # return largest score from list of section scores
-    return
+                score = float(covid19_classifier(section['text']).cats['COVID19'])
+                body_scores.append(score)
+        body_score = max(body_scores)
+    scores = [title_score, abs_score, body_score]
+    return max(scores) # return largest score from each of the scanned sections
 
 
 covid_count = 0
