@@ -14,6 +14,7 @@ from pho import PHODocument
 from dimensions import DimensionsDocument
 from lens_patents import LensPatentDocument
 from chemrxiv import ChemrxivDocument
+from psyrxiv import PsyrxivDocument
 from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictField, MultipleObjectsReturned, FloatField, StringField, BooleanField
 import re
 import os
@@ -236,7 +237,8 @@ def merge_documents(high_priority_doc, low_priority_doc):
     return merged_doc
 
 parsed_collections = [
-    ChemrxivDocument,
+    PsyrxivDocument,
+    # ChemrxivDocument,
     #DimensionsDocument,
     #LensPatentDocument,
     #BiorxivDocument,
@@ -256,8 +258,8 @@ def build_entries():
         last_entries_builder_sweep = db.metadata.find_one({'data': 'last_entries_builder_sweep_vespa'})['datetime']
 
         #docs = [doc for doc in collection.objects(_bt__gte=last_entries_builder_sweep)]
-        #docs = [doc for doc in collection.objects()]
-        docs = collection.objects()
+        docs = [doc for doc in collection.objects()]
+        # docs = collection.objects()
         for doc in docs:
             i+= 1
             if i%100 == 0:
@@ -292,5 +294,5 @@ def build_entries():
                     insert_doc.save()
                 except:
                     pass
-    db.metadata.update_one({'data': 'last_entries_builder_sweep_vespa'}, {"$set": {"datetime": datetime.now()}})
+    # db.metadata.update_one({'data': 'last_entries_builder_sweep_vespa'}, {"$set": {"datetime": datetime.now()}})
 

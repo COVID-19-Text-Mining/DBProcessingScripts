@@ -8,6 +8,7 @@ from pho import UnparsedPHODocument
 from dimensions import UnparsedDimensionsDataDocument, UnparsedDimensionsPubDocument, UnparsedDimensionsTrialDocument
 from lens_patents import UnparsedLensDocument
 from chemrxiv import UnparsedChemrxivDocument
+from psyrxiv import UnparsedPsyrxivDocument
 from datetime import datetime
 from joblib import Parallel, delayed
 import os
@@ -27,7 +28,8 @@ def init_mongoengine():
 init_mongoengine()
 
 unparsed_collection_list = [
-     UnparsedChemrxivDocument,
+     UnparsedPsyrxivDocument,
+     # UnparsedChemrxivDocument,
      # UnparsedDimensionsDataDocument,
      # UnparsedDimensionsPubDocument,
      # UnparsedDimensionsTrialDocument,
@@ -35,7 +37,7 @@ unparsed_collection_list = [
      # UnparsedGoogleFormSubmissionDocument, 
      # UnparsedPHODocument,
      # UnparsedBiorxivDocument, 
-     UnparsedLitCovidDocument, 
+     # UnparsedLitCovidDocument, 
      # UnparsedElsevierDocument,
      # UnparsedCORD19CustomDocument,
      # UnparsedCORD19CommDocument,
@@ -84,12 +86,12 @@ def parse_documents(documents):
     print('parsed')
 
 
-#for collection in unparsed_collection_list:
+# for collection in unparsed_collection_list:
 #    for document in collection.objects():
 #        from pprint import pprint
 #        pprint(document.id)
 #        parse_documents([document])
 with Parallel(n_jobs=12) as parallel:
-   parallel(delayed(parse_documents)(document) for collection in unparsed_collection_list for document in grouper(100, collection.objects))
+   parallel(delayed(parse_documents)(document) for collection in unparsed_collection_list for document in grouper(200, collection.objects))
 
-# build_entries()
+build_entries()
