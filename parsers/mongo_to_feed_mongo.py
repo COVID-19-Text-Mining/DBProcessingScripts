@@ -111,7 +111,9 @@ def doc_to_json(doc):
         del doc["cord_uid"]
 
     del doc['synced']
-    
+
+    if doc.get('hashed_title', None):
+        del doc['hashed_title']
     vespa_doc = {
         'put': 'id:covid-19:doc::%s' % doc['id'],
         'fields': doc,
@@ -119,10 +121,10 @@ def doc_to_json(doc):
     }
 
     
-    #if abstract_embedding is None and not doc.get('abstract', None) in [None, [], ""]: 
-    #    return None
-    #else:
-    return vespa_doc
+    if abstract_embedding is None and not doc.get('abstract', None) in [None, [], ""]: 
+        return None
+    else:
+        return vespa_doc
 
 
 def process_chunk(chunk):
@@ -148,7 +150,7 @@ if __name__ == '__main__':
             db.entries_vespa_upload.replace_one({'put': processed_doc['put']}, processed_doc, upsert=True)
             #print(doc['id'])
             db.entries_vespa2.update_one({'_id': ObjectId(doc['id'])}, {"$set": {"synced": True}})
-            db.entries_vespa2.update_one({'id': ObjectId(doc['id'])}, {"$set": {"synced": True}})
+            #db.entries_vespa2.update_one({'id': ObjectId(doc['id'])}, {"$set": {"synced": True}})
             #processed_docs.append(processed_doc)
     #print(processed_docs)
     #db.entries_vespa_upload.insert_many(processed_docs)

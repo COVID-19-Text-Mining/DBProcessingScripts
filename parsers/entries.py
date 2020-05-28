@@ -18,6 +18,7 @@ from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictFiel
 import re
 import os
 import pymongo
+import hashlib
 
 client = pymongo.MongoClient(os.getenv("COVID_HOST"), username=os.getenv("COVID_USER"),
                              password=os.getenv("COVID_PASS"), authSource=os.getenv("COVID_DB"))
@@ -43,6 +44,7 @@ class EntriesDocument(VespaDocument):
         "doi": {"$type": "string"}
         }
     },
+    {"fields": ["#title",]},
     {"fields": ["pmcid",],
     "unique": True,
     "partialFilterExpression": {
@@ -61,8 +63,14 @@ class EntriesDocument(VespaDocument):
         "scopus_eid": {"$type": "string"}
         }
     },
+    {"fields": ["hashed_title",],
+    "unique": True,
+    "partialFilterExpression": {
+        "hashed_title": {"$type": "string"}
+        }
+    },
     ]
-    meta = {"collection": "entries_vespa",
+    meta = {"collection": "entries_vespa2",
             "indexes": indexes,
             "allow_inheritance": False
     }    
@@ -72,8 +80,15 @@ class EntriesDocument(VespaDocument):
     is_covid19_ML = FloatField()
     keywords_ML = ListField(StringField(required=True), default=lambda: [])
     synced = BooleanField(default=False)
+    #Titles are be default too long for a unique index, so we have to hash them
+    hashed_title = StringField(default=None)
 
 entries_keys = [k for k in EntriesDocument._fields.keys() if (k[0] != "_")]
+
+def hash_title(title):
+    hash_object = hashlib.sha1(title.encode('utf-8'))
+    hex_dig = hash_object.hexdigest()
+    return hex_dig
 
 def find_matching_doc(doc):
 
@@ -82,7 +97,7 @@ def find_matching_doc(doc):
     pubmed_id = doc['pubmed_id'] if doc['pubmed_id'] is not None else "____"
     pmcid = doc['pmcid'] if doc['pmcid'] is not None else "____"
     scopus_eid = doc['scopus_eid'] if doc['scopus_eid'] is not None else "____"
-    title = doc['title'] if doc['title'] is not None and doc['title'] != "" else "________not_a_real_title_____"
+    title = hash_title(doc['title']) if doc['title'] is not None and doc['title'] != "" else "________not_a_real_title_____"
 
     if doi[-3:-1] == ".v":
         doi = doi[:-3]
@@ -90,7 +105,7 @@ def find_matching_doc(doc):
     pattern = re.compile("{}(\.v[0-9])?".format(re.escape(doi)))
 
     try:
-        matching_doc = EntriesDocument.objects(Q(doi=pattern) | Q(pubmed_id=pubmed_id) | Q(pmcid=pmcid) | Q(scopus_eid=scopus_eid) | Q(title=title)).no_cache().get()
+        matching_doc = EntriesDocument.objects(Q(doi=pattern) | Q(pubmed_id=pubmed_id) | Q(pmcid=pmcid) | Q(scopus_eid=scopus_eid) | Q(hashed_title=title)).no_cache().get()
         return [matching_doc]
     except DoesNotExist:
         pass
@@ -232,32 +247,35 @@ def merge_documents(high_priority_doc, low_priority_doc):
     if merged_doc['publication_date'] is not None:
         if merged_doc['publication_date'] > datetime.now():
             merged_doc['publication_date'] = high_priority_doc['_bt']
-        
+    if merged_doc['title'] is not None and merged_doc['title'] != "":
+        merged_doc['hashed_title'] = hash_title(merged_doc['title'])
+            
     return merged_doc
 
 parsed_collections = [
     ChemrxivDocument,
-    #DimensionsDocument,
-    #LensPatentDocument,
-    #BiorxivDocument,
-    #GoogleFormSubmissionDocument,
-    #PHODocument,
-    #LitCovidDocument,
+    DimensionsDocument,
+    LensPatentDocument,
+    BiorxivDocument,
+    GoogleFormSubmissionDocument,
+    PHODocument,
+    LitCovidDocument,
     CORD19Document,
     ElsevierDocument,
 ]
 
 def build_entries():
     i=0
-    #def find_matching_doc(doc):
-    #    return []
-    for collection in parsed_collections:
+    def find_matching_doc(doc):
+        return []
+    for collection in parsed_collections[::1]:
         print(collection)
         last_entries_builder_sweep = db.metadata.find_one({'data': 'last_entries_builder_sweep_vespa'})['datetime']
 
-        #docs = [doc for doc in collection.objects(_bt__gte=last_entries_builder_sweep)]
+        docs = [doc for doc in collection.objects(_bt__gte=last_entries_builder_sweep)]
+        print(len(docs))
         #docs = [doc for doc in collection.objects()]
-        docs = collection.objects()
+        #docs = collection.objects()
         for doc in docs:
             i+= 1
             if i%100 == 0:
@@ -285,7 +303,13 @@ def build_entries():
             else:
                 insert_doc = None
             if insert_doc:
-                insert_doc.source_documents.append(doc)
+                try:
+                    insert_doc.source_documents.append(doc)
+                except AttributeError:
+                    from pprint import pprint
+                    print(doc)
+                    pprint(doc.to_json())
+                    pprint(insert_doc.to_json())
                 insert_doc._bt = datetime.now()
                 insert_doc.synced = False
                 try:

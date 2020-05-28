@@ -28,19 +28,19 @@ init_mongoengine()
 
 unparsed_collection_list = [
      UnparsedChemrxivDocument,
-     # UnparsedDimensionsDataDocument,
-     # UnparsedDimensionsPubDocument,
-     # UnparsedDimensionsTrialDocument,
-     # UnparsedLensDocument,
-     # UnparsedGoogleFormSubmissionDocument, 
-     # UnparsedPHODocument,
-     # UnparsedBiorxivDocument, 
+     UnparsedDimensionsDataDocument,
+     UnparsedDimensionsPubDocument,
+     UnparsedDimensionsTrialDocument,
+     UnparsedLensDocument,
+     UnparsedGoogleFormSubmissionDocument, 
+     UnparsedPHODocument,
+     UnparsedBiorxivDocument, 
      UnparsedLitCovidDocument, 
-     # UnparsedElsevierDocument,
-     # UnparsedCORD19CustomDocument,
-     # UnparsedCORD19CommDocument,
-     # UnparsedCORD19NoncommDocument, 
-     # UnparsedCORD19XrxivDocument,
+     UnparsedElsevierDocument,
+     UnparsedCORD19CustomDocument,
+     UnparsedCORD19CommDocument,
+     UnparsedCORD19NoncommDocument, 
+     UnparsedCORD19XrxivDocument,
      ]
 
 def parse_document(document):
@@ -61,11 +61,11 @@ def parse_document(document):
             parsed_document = new_doc
         document.parsed_document = parsed_document
         parsed_document.find_missing_ids()
-        try:
-            parsed_document.save()
-            document.save()
-        except:
-            pass
+        #try:
+        parsed_document.save()
+        document.save()
+        #except:
+        #    pass
 
 def grouper(n, iterable):
     it = iter(iterable)
@@ -89,7 +89,7 @@ def parse_documents(documents):
 #        from pprint import pprint
 #        pprint(document.id)
 #        parse_documents([document])
-with Parallel(n_jobs=12) as parallel:
-   parallel(delayed(parse_documents)(document) for collection in unparsed_collection_list for document in grouper(100, collection.objects))
+with Parallel(n_jobs=32) as parallel:
+   parallel(delayed(parse_documents)(document) for collection in unparsed_collection_list for document in grouper(200, collection.objects))
 
-# build_entries()
+build_entries()

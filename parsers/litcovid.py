@@ -6,7 +6,8 @@ from utils import clean_title, find_cited_by, find_references, find_remaining_id
 from pprint import PrettyPrinter
 import xml.etree.ElementTree as ET
 from lxml import etree
-from mongoengine import DynamicDocument, ReferenceField, DateTimeField
+from mongoengine import DynamicDocument, ReferenceField, DateTimeField, DictField
+import dateutil.parser
 
 latest_version = 5
 
@@ -98,19 +99,17 @@ class LitCovidParser(Parser):
 
     def _parse_publication_date(self, doc):
         """ Returns the publication_date of a document as a <class 'datetime.datetime'>"""
+        datestring = self._parse_datestring(doc)
+        if datestring is None:
+            return datetime.now()
         try:
-            datestring = self._parse_datestring(doc)
-            if datestring.isdigit():
-                if len(datestring) == 8:
-                    return datetime.strptime(datestring, '%Y%m%d')
-                elif len(datestring) == 6:
-                    return datetime.strptime(datestring, '%Y%m')
-                elif len(datestring) == 4:
-                    return datetime.strptime(datestring, '%Y')
-            else:
-                return datetime.strptime(datestring, '%Y%b%d')
-        except:
-            return None
+            return dateutil.parser.parse(datestring)
+        except dateutil.parser._parser.ParserError:
+            datestring = datestring.split('-')[0][:7]
+            try:
+                return datetime.strptime(datestring,'%Y%b')
+            except:
+                return datetime.strptime(datestring[:4],"%Y")
 
     def _parse_has_year(self, doc):
         """ Returns a <class 'bool'> specifying whether a document's year can be trusted."""
@@ -120,11 +119,15 @@ class LitCovidParser(Parser):
         """ Returns a <class 'bool'> specifying whether a document's month can be trusted."""
         if self._parse_datestring(doc) != None:
             return len(self._parse_datestring(doc)) >= 6
+        else:
+            return False
 
     def _parse_has_day(self, doc):
         """ Returns a <class 'bool'> specifying whether a document's day can be trusted."""
         if self._parse_datestring(doc) != None:
             return len(self._parse_datestring(doc)) >= 8
+        else:
+            return False
 
     def _parse_abstract(self, doc):
         """ Returns the abstract of a document as a <class 'str'>"""
@@ -154,7 +157,7 @@ class LitCovidParser(Parser):
 
     def _parse_has_full_text(self, doc):
         """ Returns a <class 'bool'> specifying if we have the full text."""
-        return None
+        return False
 
     def _parse_body_text(self, doc):
         """ Returns the body_text of a document as a <class 'list'> of <class 'dict'>.
@@ -272,8 +275,8 @@ class UnparsedLitCovidDocument(DynamicDocument):
 
     parsed_document = ReferenceField(LitCovidDocument, required=False)
 
-    last_updated = DateTimeField(db_field="last_updated")
-
+    last_updated = DateTimeField(db_field='last_updated')
+    
     def parse(self):
         parsed_document = self.parser.parse(self.to_mongo())
         parsed_document['_bt'] = datetime.now()
