@@ -6,6 +6,13 @@ import warnings
 ###########################################
 
 def query_crossref_by_doi(doi, verbose=True):
+    """
+    get crossref records by paper doi
+
+    :param doi: (str) doi of a paper
+    :param verbose: (bool) print diagnosis message or not
+    :return: (dict) result from crossref api
+    """
     # goal
     crossref_results = None
 
@@ -41,6 +48,26 @@ def query_crossref_by_doi(doi, verbose=True):
 
 
 def query_crossref(query_params):
+    """
+    Query crossref by arbitrary parameters
+    Introduction to available parameters is on https://github.com/CrossRef/rest-api-doc
+    The most useful one is to query by bibliographic (title/authors)
+
+    :param query_params: (dict)
+        example query by title
+            query_params = {
+                'sort': 'relevance',
+                'order': 'desc',
+                'query.bibliographic': title,
+            }
+        example query by authors
+            query_params = {
+                'sort': 'relevance',
+                'order': 'desc',
+                'query.bibliographic': ', '.join([x['last'] for x in author_names]),
+            }
+    :return: (dict) result from crossref api
+    """
     # goal
     crossref_results = None
 

@@ -1,4 +1,7 @@
 class CrossrefParser(object):
+    """
+    Parser for result from crossref API
+    """
     # TODO: need to extend base parser and use the schema for auto type check
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -190,6 +193,12 @@ class CrossrefParser(object):
         return abstract
 
     def parse(self, data):
+        """
+        entrance function to parse the crossref api
+
+        :param data: (dict) data returned by crossref api
+        :return: (dict) metadata of paper
+        """
         paper = {}
 
         for key, parse_func in self.parse_functions.items():
