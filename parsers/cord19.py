@@ -135,7 +135,7 @@ class CORD19Parser(Parser):
                 parsed_date['has_day'] = 'day' in publication_date_dict.keys()
 
             else:
-                parsed_date['publication_date'] = None
+                parsed_date['publication_date'] = datetime.now()
                 parsed_date['has_year'] = False
                 parsed_date['has_month'] = False
                 parsed_date['has_day'] = False
@@ -155,7 +155,7 @@ class CORD19Parser(Parser):
                 parsed_date['has_day'] = False
 
         else:
-            parsed_date["publication_date"] = None
+            parsed_date["publication_date"] = datetime.now()
             parsed_date['has_year'] = False
             parsed_date['has_month'] = False
             parsed_date['has_day'] = False

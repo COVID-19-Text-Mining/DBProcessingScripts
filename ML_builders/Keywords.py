@@ -74,29 +74,30 @@ for entry in entries:
         entry.keywords_ML = ml_keywords
 
     covid19_words = ["COVID-19", "SARS-CoV2", "sars-cov-2", "nCoV-2019", "covid19", "sarscov2", "ncov2019", "covid 19", "sars cov2", "ncov 2019", "severe acute respiratory syndrome coronavirus 2", "Wuhan seafood market pneumonia virus", "Coronavirus disease", "covid", "wuhan virus"]
-    if 'category_human' in entry_dict.keys() and not entry_dict['category_human'] in ["", [], None]:
-        entry.is_covid19 = (entry_dict['category_human'] == "COVID-19/SARS-CoV2/nCoV-2019")
-    else:
-        is_covid19 = False
-        if 'keywords' in entry_dict.keys():
-            if any([c.lower() in [e.lower() for e in entry_dict['keywords']] for c in covid19_words]):
-                is_covid19 = True
-        if len(text) > 0:
-            if any([c.lower() in text.lower() for c in covid19_words]):
-                is_covid19 = True
-        if 'title' in entry_dict.keys() and entry_dict['title'] is not None:
-            if any([c.lower() in entry_dict['title'].lower() for c in covid19_words]):
-                is_covid19 = True
-        try:
-            if any([c.lower() in e['text'].lower() for c in covid19_words for e in entry_dict['body_text']]):
-                is_covid19 = True
-        except (KeyError, TypeError):
-            pass
+    if not entry.is_covid19:
+        if 'category_human' in entry_dict.keys() and not entry_dict['category_human'] in ["", [], None]:
+            entry.is_covid19 = (entry_dict['category_human'] == "COVID-19/SARS-CoV2/nCoV-2019")
+        else:
+            is_covid19 = False
+            if 'keywords' in entry_dict.keys():
+                if any([c.lower() in [e.lower() for e in entry_dict['keywords']] for c in covid19_words]):
+                    is_covid19 = True
+            if len(text) > 0:
+                if any([c.lower() in text.lower() for c in covid19_words]):
+                    is_covid19 = True
+            if 'title' in entry_dict.keys() and entry_dict['title'] is not None:
+                if any([c.lower() in entry_dict['title'].lower() for c in covid19_words]):
+                    is_covid19 = True
+            try:
+                if any([c.lower() in e['text'].lower() for c in covid19_words for e in entry_dict['body_text']]):
+                    is_covid19 = True
+            except (KeyError, TypeError):
+                pass
 
-        entry.is_covid19 = is_covid19 or entry.is_covid19
+            entry.is_covid19 = is_covid19 or entry.is_covid19
 
-        if 'publication_date' in entry_dict.keys() and (entry_dict['publication_date'] < datetime.datetime(year=2019,month=1,day=1) and entry_dict['has_year']):
-            entry.is_covid19 = False
+            if 'publication_date' in entry_dict.keys() and (entry_dict['publication_date'] < datetime.datetime(year=2019,month=1,day=1) and entry_dict['has_year']):
+                entry.is_covid19 = False
 
     # print(entry.is_covid19)
     #if 'is_covid19_ML' in entry_dict.keys():

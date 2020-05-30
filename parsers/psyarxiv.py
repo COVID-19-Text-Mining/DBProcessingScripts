@@ -11,15 +11,15 @@ from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 
 latest_version = 1
 
-class PsyrxivDocument(VespaDocument):
-    meta = {"collection": "Psyrxiv_parsed_vespa",
+class PsyarxivDocument(VespaDocument):
+    meta = {"collection": "Psyarxiv_parsed_vespa",
             "indexes": indexes
     }
 
     latest_version = latest_version
-    unparsed_document = ReferenceField('UnparsedPsyrxivDocument', required=True)
+    unparsed_document = ReferenceField('UnparsedPsyarxivDocument', required=True)
 
-class PsyrxivParser(Parser):
+class PsyarxivParser(Parser):
 
     def __init__(self, parse_full_text=False):
         """
@@ -91,7 +91,7 @@ class PsyrxivParser(Parser):
     def _parse_origin(self, doc):
         """ Returns the origin of the document as a <class 'str'>. Use the mongodb collection
         name for this."""
-        return "Scraper_Psyrxiv_org"
+        return "Scraper_Psyarxiv_org"
 
     def _parse_source_display(self, doc):
         """ Returns the source of the document as a <class 'str'>. This is what will be
@@ -224,15 +224,15 @@ class PsyrxivParser(Parser):
         parsed_doc['PDF_gridfs_id'] = doc.get('PDF_gridfs_id', None)
         return parsed_doc
 
-class UnparsedPsyrxivDocument(DynamicDocument):
+class UnparsedPsyarxivDocument(DynamicDocument):
     meta = {"collection": "Scraper_share_osf_io"
     }
 
-    parser = PsyrxivParser()
+    parser = PsyarxivParser()
 
-    parsed_class = PsyrxivDocument
+    parsed_class = PsyarxivDocument
 
-    parsed_document = ReferenceField(PsyrxivDocument, required=False)
+    parsed_document = ReferenceField(PsyarxivDocument, required=False)
 
     last_updated = DateTimeField(db_field="last_updated")
 
@@ -241,4 +241,4 @@ class UnparsedPsyrxivDocument(DynamicDocument):
         parsed_document['_bt'] = datetime.now()
         parsed_document['unparsed_document'] = self
         del(parsed_document['PDF_gridfs_id'])
-        return PsyrxivDocument(**parsed_document)
+        return PsyarxivDocument(**parsed_document)
