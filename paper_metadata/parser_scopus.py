@@ -3,13 +3,14 @@ import collections
 
 from paper_metadata.metadata_doc import MetadataDocument
 from paper_metadata.common_utils import parse_date
+from paper_metadata.common_utils import parse_names
 from parsers.utils import find_remaining_ids
 
 from parsers.base import Parser
 
-class CrossrefParser(Parser):
+class ScopusParser(Parser):
     """
-    Parser for result from crossref API
+    Parser for result from scopus API
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -59,11 +60,11 @@ class CrossrefParser(Parser):
         doi = None
 
         if (doi is None
-                and 'DOI' in doc
-                and isinstance(doc['DOI'], str)
-                and len(doc['DOI']) > 0
+            and 'doi' in doc
+            and isinstance(doc['doi'], str)
+            and len(doc['doi']) > 0
         ):
-            doi = doc['DOI']
+            doi = doc['doi']
         return doi
 
     def _parse_title(self, doc):
@@ -72,12 +73,11 @@ class CrossrefParser(Parser):
         title = None
 
         if (title is None
-                and 'title' in doc
-                and isinstance(doc['title'], list)
-                and len(doc['title']) > 0
-                and len(doc['title'][0]) > 0
+            and 'title' in doc
+            and isinstance(doc['title'], str)
+            and len(doc['title']) > 0
         ):
-            title = doc['title'][0]
+            title = doc['title']
 
         return title
 
@@ -89,21 +89,24 @@ class CrossrefParser(Parser):
         "middle_name", "last_name", "institution", "email".
         """
         # authors
+        # TODO:
+        ...
         authors = None
 
         if (authors is None
-            and 'author' in doc
-            and isinstance(doc['author'], list)
-            and len(doc['author']) > 0
+            and 'author_names' in doc
+            and isinstance(doc['author_names'], str)
+            and len(doc['author_names']) > 0
         ):
             authors = []
-            for x in doc['author']:
-                if not ('given' in x and 'family' in x):
+            names_parsed = parse_names(doc['author_names'])
+            for x in names_parsed:
+                if not ('first' in x and 'last' in x):
                     continue
                 authors.append({
-                    'first_name': x['given'],
+                    'first_name': x['first'] if x['first'] else '',
                     'middle_name': '',
-                    'last_name': x['family'],
+                    'last_name': x['last'] if x['last'] else '',
                     'name': '',
                     'institution': '',
                     'email': '',
@@ -118,18 +121,11 @@ class CrossrefParser(Parser):
         journal_name = None
 
         if (journal_name is None
-            and 'container-title' in doc
-            and isinstance(doc['container-title'], list)
-            and len(doc['container-title']) == 1
+            and 'publicationName' in doc
+            and isinstance(doc['publicationName'], str)
+            and len(doc['publicationName']) > 0
         ):
-            journal_name = doc['container-title'][0]
-
-        if (journal_name is None
-            and 'short-container-title' in doc
-            and isinstance(doc['short-container-title'], list)
-            and len(doc['short-container-title']) == 1
-        ):
-            journal_name = doc['short-container-title'][0]
+            journal_name = doc['publicationName']
 
         return journal_name
 
@@ -144,42 +140,22 @@ class CrossrefParser(Parser):
         ISSN = None
         # ISSN
         if (ISSN is None
-            and 'ISSN' in doc
-            and isinstance(doc['ISSN'], list)
-            and len(doc['ISSN']) == 1
+            and 'issn' in doc
+            and isinstance(doc['issn'], str)
+            and len(doc['issn']) > 0
         ):
-            ISSN = doc['ISSN'][0]
+            ISSN = doc['issn']
         return ISSN
 
     def _parse_publish_date(self, doc):
         # publish_date
         publish_date = None
         if (publish_date is None
-            and 'issued' in doc
-            and 'date-parts' in doc['issued']
-            and isinstance(doc['issued']['date-parts'], list)
-            and len(doc['issued']['date-parts']) == 1
-            and len(doc['issued']['date-parts'][0]) > 0
+            and 'coverDate' in doc
+            and isinstance(doc['coverDate'], str)
+            and len(doc['coverDate']) > 0
         ):
-            publish_date = doc['issued']['date-parts'][0]
-        if (publish_date is None
-            and 'published-online' in doc
-            and 'date-parts' in doc['published-online']
-            and isinstance(doc['published-online']['date-parts'], list)
-            and len(doc['published-online']['date-parts']) == 1
-            and len(doc['published-online']['date-parts'][0]) > 0
-        ):
-            publish_date = doc['published-online']['date-parts'][0]
-        if (publish_date is None
-            and 'published-print' in doc
-            and 'date-parts' in doc['published-print']
-            and isinstance(doc['published-print']['date-parts'], list)
-            and len(doc['published-print']['date-parts']) == 1
-            and len(doc['published-print']['date-parts'][0]) > 0
-        ):
-            publish_date = doc['published-print']['date-parts'][0]
-        if publish_date is not None:
-            publish_date = parse_date(publish_date)
+            publish_date = parse_date(doc['coverDate'])
         return publish_date
 
 
@@ -189,23 +165,23 @@ class CrossrefParser(Parser):
         abstract = None
 
         if (abstract is None
-            and 'abstract' in doc
-            and isinstance(doc['abstract'], str)
-            and len(doc['abstract']) > 0
+            and 'description' in doc
+            and isinstance(doc['description'], str)
+            and len(doc['description']) > 0
         ):
-            abstract = doc['abstract']
+            abstract = doc['description']
         return abstract
 
     def _parse_origin(self, doc):
         """ Returns the origin of the document as a <class 'str'>. Use the mongodb collection
         name for this."""
-        return 'CrossRef'
+        return 'Scopus'
 
     def _parse_source_display(self, doc):
         """ Returns the source of the document as a <class 'str'>. This is what will be
         displayed on the website, so use something people will recognize properly and
         use proper capitalization."""
-        return 'CrossRef'
+        return 'Scopus'
 
     def _parse_last_updated(self, doc):
         """ Returns when the entry was last_updated as a <class 'datetime.datetime'>. Note
@@ -232,27 +208,7 @@ class CrossrefParser(Parser):
         as a field for each reference if at all possible.
         """
         # reference
-        crossref_reference = None
-
-        if (crossref_reference is None
-            and 'reference' in doc
-            and isinstance(doc['reference'], list)
-            and len(doc['reference']) > 0
-        ):
-            crossref_reference = []
-            for ref in doc['reference']:
-                if ('DOI' in ref
-                    and isinstance(ref['DOI'], str)
-                    and len(ref['DOI']) > 0
-                ):
-                    crossref_reference.append({
-                        'text': ref['DOI'],
-                        'doi': ref['DOI'],
-                    })
-            if len(crossref_reference) == 0:
-                crossref_reference = None
-
-        return crossref_reference
+        return None
 
     def _parse_cited_by(self, doc):
         """ Returns the citations of a document as a <class 'list'> of <class 'dict'>.
@@ -332,7 +288,15 @@ class CrossrefParser(Parser):
 
     def _parse_pubmed_id(self, doc):
         """ Returns the PubMed ID of a document as a <class 'str'>."""
-        return NotImplementedError
+        pubmed_id = None
+
+        if (pubmed_id is None
+            and 'pubmed_id' in doc
+            and isinstance(doc['pubmed_id'], str)
+            and len(doc['pubmed_id']) > 0
+        ):
+            pubmed_id = doc['pubmed_id']
+        return pubmed_id
 
     ###########################################
     # Post - process functions
@@ -386,7 +350,7 @@ class CrossrefParser(Parser):
     def _postprocess_pubmed_id(self, doc, parsed_doc):
         """ Returns the PubMed ID of a document as a <class 'str'>."""
         result = None
-        if parsed_doc.get('doi'):
+        if (not parsed_doc.get('pubmed_id')) and parsed_doc.get('doi'):
             ids = find_remaining_ids(parsed_doc['doi'])
             if ids.get('pubmed_id'):
                 result = ids['pubmed_id']
