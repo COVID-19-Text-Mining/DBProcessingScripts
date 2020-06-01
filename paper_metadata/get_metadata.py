@@ -1,6 +1,23 @@
+import os
+import sys
+
+parent_folder = os.path.abspath(
+    os.path.join(
+        os.path.dirname(__file__),
+        '..'
+    )
+)
+print('parent_folder', parent_folder)
+if parent_folder not in sys.path:
+    sys.path.append(parent_folder)
+parser_folder = os.path.join(parent_folder, 'parsers')
+if parser_folder not in sys.path:
+    sys.path.append(parser_folder)
+
+import json
 from pprint import pprint
-from api_crossref import query_crossref_by_doi
-from parser_crossref import CrossrefParser
+from paper_metadata.api_crossref import query_crossref_by_doi
+from paper_metadata.parser_crossref import CrossrefParser
 
 crossref_parser = CrossrefParser()
 
@@ -20,7 +37,7 @@ def get_api_metadata_by_doi(doi):
         query_result = None
         print(e)
     if query_result is not None:
-        result = crossref_parser.parse(query_result)
+        result = crossref_parser.get_parsed_doc(query_result)
     return result
 
 
@@ -40,7 +57,7 @@ def get_db_metadata_by_doi(mongo_db, doi):
     col = mongo_db[col_name]
     doc = col.find_one({'doi': doi})
     if doc:
-        result = crossref_parser.parse(doc['crossref_raw_result'])
+        result = crossref_parser.get_parsed_doc(doc['crossref_raw_result'])
     return result
 
 # TODO: have a function get_metadata_by_pmid()
@@ -69,10 +86,12 @@ def get_metadata_by_doi(mongo_db, doi):
 
 
 if __name__ == '__main__':
-    from common_utils import get_mongo_db
+    from paper_metadata.common_utils import get_mongo_db
 
     db = get_mongo_db('../config.json')
     print(db.collection_names())
 
-    doc = get_metadata_by_doi(db, doi='10.1016/j.cell.2020.02.052')
-    print(doc)
+    # doc = get_db_metadata_by_doi(db, doi='10.1016/j.cell.2020.02.052')
+    doc = get_db_metadata_by_doi(db, doi='10.3390/v4061011')
+    pprint(json.loads(doc.to_json()))
+    print('doc.validate()', doc.validate())
