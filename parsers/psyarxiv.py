@@ -1,4 +1,4 @@
-from base import Parser, VespaDocument, indexes
+    from base import Parser, VespaDocument, indexes
 import os
 import pymongo
 from datetime import datetime
@@ -86,7 +86,10 @@ class PsyarxivParser(Parser):
 
     def _parse_abstract(self, doc):
         """ Returns the abstract of a document as a <class 'str'>"""
-        return ' '.join(doc.get('Abstract', []))
+        if istype(doc.get('Abstract', []), list):
+            return ' '.join(doc.get('Abstract', []))
+        else:
+            return doc.get('Abstract', "")
 
     def _parse_origin(self, doc):
         """ Returns the origin of the document as a <class 'str'>. Use the mongodb collection
