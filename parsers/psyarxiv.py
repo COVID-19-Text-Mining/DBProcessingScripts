@@ -9,7 +9,7 @@ from io import BytesIO
 from pdf_extractor.paragraphs import extract_paragraphs_pdf
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 
-latest_version = 1
+latest_version = 2
 
 class PsyarxivDocument(VespaDocument):
     meta = {"collection": "Psyarxiv_parsed_vespa",
