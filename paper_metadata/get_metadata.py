@@ -53,7 +53,7 @@ def get_db_metadata_by_doi(mongo_db, doi):
     """
     result = None
 
-    col_name = 'crossref_metadata'
+    col_name = 'metadata_from_api'
     col = mongo_db[col_name]
     doc = col.find_one({'doi': doi})
     if doc:
