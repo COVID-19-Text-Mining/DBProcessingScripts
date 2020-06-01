@@ -156,7 +156,6 @@ def get_metadata_by_doi(mongo_db, doi):
     :return: (dict or None) metadata of the paper such as title, authors, etc.
     """
 
-    # TODO: need a schema and auto type here
     result = None
 
     result = get_db_metadata_by_doi(mongo_db, doi)
