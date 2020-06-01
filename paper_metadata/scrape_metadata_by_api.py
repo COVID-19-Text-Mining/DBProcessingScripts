@@ -5,7 +5,9 @@ from datetime import datetime
 
 from paper_metadata.common_utils import get_mongo_db
 from paper_metadata.api_crossref import query_crossref_by_doi
-from paper_metadata.api_scopus import query_scopus_by_doi, change_default_scopus_config
+from paper_metadata.api_scopus import query_scopus_by_doi
+from paper_metadata.api_scopus import change_default_scopus_config
+from parsers.utils import find_remaining_ids
 
 PAPER_COLLECTIONS = {
     # 'Vespa_CORD_biorxiv_medrxiv_parsed',
@@ -46,7 +48,7 @@ def doi_url_rm_prefix(doi_url):
 
 def collect_crossref_data(mongo_db):
     aug_col = mongo_db['metadata_from_api']
-    aug_col.create_index('doi', unique=True)
+    aug_col.create_index('doi', unique=False)
 
     for col_name in mongo_db.collection_names():
         if col_name not in PAPER_COLLECTIONS:
@@ -106,7 +108,7 @@ def collect_crossref_data(mongo_db):
 
 def collect_scopus_data(mongo_db):
     aug_col = mongo_db['metadata_from_api']
-    aug_col.create_index('doi', unique=True)
+    aug_col.create_index('doi', unique=False)
 
     for col_name in mongo_db.collection_names():
         if col_name != 'Elsevier_parsed_vespa':
@@ -166,6 +168,31 @@ def collect_scopus_data(mongo_db):
                     }
                 )
 
+def collect_pmid_data(mongo_db):
+    aug_col = mongo_db['metadata_from_api']
+    aug_col.create_index('pmcid', unique=False)
+    aug_col.create_index('pubmed_id', unique=False)
+
+    query_aug = aug_col.find({
+        'doi': {'$exists': True},
+    })
+    for doc in query_aug:
+        set_params = {}
+        ids = find_remaining_ids(doc['doi'])
+        if ids.get('pmcid'):
+            set_params['pmcid'] = ids['pmcid']
+        if ids.get('pubmed_id'):
+            set_params['pubmed_id'] = ids['pubmed_id']
+
+        if len(set_params) > 0:
+            aug_col.find_one_and_update(
+                {'_id': doc['_id']},
+                {
+                    '$set': set_params
+                },
+            )
+
+
 
 if __name__ == '__main__':
     db = get_mongo_db('../config.json')
@@ -174,14 +201,15 @@ if __name__ == '__main__':
     # scrape crossref
     # collect_crossref_data(db)
 
-    # scrape scopus
-    # scopus need some complex api setup
-    with open('../config.json', 'r') as fr:
-       credentials = json.load(fr)
+    # # scrape scopus
+    # # scopus need some complex api setup
+    # with open('../config.json', 'r') as fr:
+    #    credentials = json.load(fr)
+    #
+    # change_default_scopus_config(
+    #     api_key=credentials['scopus']['api_key']
+    # )
+    # collect_scopus_data(db)
 
-    change_default_scopus_config(
-        api_key=credentials['scopus']['api_key']
-    )
-    collect_scopus_data(db)
-
-
+    # populate pmid by doi
+    collect_pmid_data(db)

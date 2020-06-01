@@ -17,9 +17,42 @@ if parser_folder not in sys.path:
 import json
 from pprint import pprint
 from paper_metadata.api_crossref import query_crossref_by_doi
+from paper_metadata.api_scopus import query_scopus_by_doi
+from paper_metadata.api_scopus import change_default_scopus_config
 from paper_metadata.parser_crossref import CrossrefParser
+from paper_metadata.parser_scopus import ScopusParser
+from paper_metadata.metadata_doc import MetadataDocument
 
 crossref_parser = CrossrefParser()
+scopus_parser = ScopusParser()
+
+####################################################
+# use api
+####################################################
+
+def get_api_crossref_metadata_by_doi(doi):
+    result = None
+    # crossref api
+    try:
+        query_result = query_crossref_by_doi(doi)
+    except Exception as e:
+        query_result = None
+        print(e)
+    if query_result is not None:
+        result = crossref_parser.get_parsed_doc(query_result)
+    return result
+
+def get_api_scopus_metadata_by_doi(doi):
+    result = None
+    # scopus api
+    try:
+        query_result = query_scopus_by_doi(doi)
+    except Exception as e:
+        query_result = None
+        print(e)
+    if query_result is not None:
+        result = scopus_parser.get_parsed_doc(query_result)
+    return result
 
 def get_api_metadata_by_doi(doi):
     """
@@ -31,15 +64,53 @@ def get_api_metadata_by_doi(doi):
     :return: (dict or None) metadata of the paper such as title, authors, etc.
     """
     result = None
-    try:
-        query_result = query_crossref_by_doi(doi)
-    except Exception as e:
-        query_result = None
-        print(e)
-    if query_result is not None:
-        result = crossref_parser.get_parsed_doc(query_result)
+
+    docs = []
+    funcs = {
+        'crossref': get_api_crossref_metadata_by_doi,
+        'scopus': get_api_scopus_metadata_by_doi,
+    }
+    for k, f in funcs.items():
+        r = f(doi)
+        if r:
+            docs.append(r)
+    if len(docs) > 0:
+        result = MetadataDocument.merge_docs(docs)
+
     return result
 
+####################################################
+# use db
+####################################################
+
+def get_db_crossref_metadata_by_doi(mongo_db, doi):
+    result = None
+
+    col_name = 'metadata_from_api'
+    col = mongo_db[col_name]
+
+    # crossref db records
+    doc = col.find_one(
+        {'doi': doi, 'crossref_raw_result': {'$exists': True}}
+    )
+    if doc:
+        result = crossref_parser.get_parsed_doc(doc['crossref_raw_result'])
+    return result
+
+
+def get_db_scopus_metadata_by_doi(mongo_db, doi):
+    result = None
+
+    col_name = 'metadata_from_api'
+    col = mongo_db[col_name]
+
+    # scopus db records
+    doc = col.find_one(
+        {'doi': doi, 'scopus_raw_result': {'$exists': True}}
+    )
+    if doc:
+        result = scopus_parser.get_parsed_doc(doc['scopus_raw_result'])
+    return result
 
 def get_db_metadata_by_doi(mongo_db, doi):
     """
@@ -53,15 +124,26 @@ def get_db_metadata_by_doi(mongo_db, doi):
     """
     result = None
 
-    col_name = 'metadata_from_api'
-    col = mongo_db[col_name]
-    doc = col.find_one({'doi': doi})
-    if doc:
-        result = crossref_parser.get_parsed_doc(doc['crossref_raw_result'])
+    docs = []
+    funcs = {
+        'crossref': get_db_crossref_metadata_by_doi,
+        'scopus': get_db_scopus_metadata_by_doi,
+    }
+    for k, f in funcs.items():
+        r = f(mongo_db, doi)
+        if r:
+            docs.append(r)
+    if len(docs) > 0:
+        result = MetadataDocument.merge_docs(docs)
+
     return result
 
-# TODO: have a function get_metadata_by_pmid()
 
+####################################################
+# entrance to all
+####################################################
+
+# TODO: have a function get_metadata_by_pmid()
 def get_metadata_by_doi(mongo_db, doi):
     """
     get metadata of a paper by it doi.
@@ -91,7 +173,21 @@ if __name__ == '__main__':
     db = get_mongo_db('../config.json')
     print(db.collection_names())
 
+    # scrape scopus
+    # scopus need some complex api setup
+    with open('../config.json', 'r') as fr:
+       credentials = json.load(fr)
+
+    change_default_scopus_config(
+        api_key=credentials['scopus']['api_key']
+    )
+
     # doc = get_db_metadata_by_doi(db, doi='10.1016/j.cell.2020.02.052')
-    doc = get_db_metadata_by_doi(db, doi='10.3390/v4061011')
-    pprint(json.loads(doc.to_json()))
-    print('doc.validate()', doc.validate())
+    doc = get_db_metadata_by_doi(db, doi='10.1016/B978-0-12-385034-8.00005-3')
+    # doc = get_db_metadata_by_doi(db, doi='10.1016/B978-0-12-385034-8.00005-3')
+    # doc = get_api_metadata_by_doi(doi='10.3390/v4061011')
+    # doc = get_api_metadata_by_doi(doi='10.1016/B978-0-12-385034-8.00005-3')
+    if doc is not None:
+        pprint(doc.to_mongo())
+        print('doc.publication_date', doc.publication_date)
+        print('doc.validate()', doc.validate())
