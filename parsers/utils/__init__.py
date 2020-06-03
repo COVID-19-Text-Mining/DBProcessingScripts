@@ -1,8 +1,6 @@
-import json
-import re
-import xml.etree.ElementTree as ET
-
 import requests
+import xml.etree.ElementTree as ET
+import json
 
 
 def clean_title(title):
@@ -16,23 +14,12 @@ def clean_title(title):
     return title
 
 
-def fix_tailing_whitespace(text):
-    cnt = sum(map(len, re.findall(r'(?:[\w.!?,]\s)+', text)))
-    if cnt > 0.75:
-        text = re.sub(r'([^\s])\s', lambda x: x.group(1), text)
-        text = re.sub(r'\s+', ' ', text)
-    return text.strip()
-
-
 def clean_abstract(abstract):
     if not abstract:
         return abstract
 
     if 'a b s t r a c t' in abstract:
         abstract = abstract.split('a b s t r a c t')[1]
-
-    abstract = fix_tailing_whitespace(abstract)
-
     return abstract
 
 
