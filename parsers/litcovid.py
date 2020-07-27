@@ -105,9 +105,12 @@ class LitCovidParser(Parser):
         try:
             return dateutil.parser.parse(datestring)
         except dateutil.parser._parser.ParserError:
-            datestring = datestring.split('-')[0][:7]
+            datestring = datestring.split('-')[0]
             try:
-                return datetime.strptime(datestring,'%Y%b')
+                if len(datestring) > 7:
+                    return datetime.strptime(datestring,'%Y%b%d')
+                else:
+                    return datetime.strptime(datestring[:7], '%Y%b')
             except:
                 return datetime.strptime(datestring[:4],"%Y")
 
