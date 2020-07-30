@@ -1,4 +1,4 @@
-    from base import Parser, VespaDocument, indexes
+from base import Parser, VespaDocument, indexes
 import os
 import pymongo
 from datetime import datetime

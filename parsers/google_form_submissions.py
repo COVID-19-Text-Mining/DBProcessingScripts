@@ -148,7 +148,7 @@ class GoogleSubmissionParser(Parser):
 
     def _parse_link(self, doc):
         """ Returns the url of a document as a <class 'str'>"""
-        if type(doc) == dict and'link' in doc.keys():
+        if 'link' in doc.keys():
             return doc['link']
         elif self._parse_doi(doc):
             return 'https://doi.org/' + self._parse_doi(doc)
