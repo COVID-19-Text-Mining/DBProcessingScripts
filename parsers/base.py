@@ -7,7 +7,7 @@ from utils import find_remaining_ids
 
 __all__ = [
     'Author', 'ExtendedParagraph', 'Reference', 'VespaDocument',
-    'Parser'
+    'Parser', 'indexes'
 ]
 
 indexes = [
