@@ -15,7 +15,8 @@ from dimensions import DimensionsDocument
 from lens_patents import LensPatentDocument
 from chemrxiv import ChemrxivDocument
 from psyarxiv import PsyarxivDocument
-from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictField, MultipleObjectsReturned, FloatField, StringField, BooleanField
+from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictField, MultipleObjectsReturned, FloatField, StringField, BooleanField, DateTimeField, ReferenceField
+from twitter_mentions import TweetDocument
 import re
 import os
 import pymongo
@@ -83,6 +84,9 @@ class EntriesDocument(VespaDocument):
     synced = BooleanField(default=False)
     #Titles are be default too long for a unique index, so we have to hash them
     hashed_title = StringField(default=None)
+
+    last_twitter_search = DateTimeField()
+    tweets = ListField(ReferenceField(TweetDocument))
 
 entries_keys = [k for k in EntriesDocument._fields.keys() if (k[0] != "_")]
 
@@ -191,7 +195,7 @@ def merge_documents(high_priority_doc, low_priority_doc):
 
             merged_doc[k] = list(set([anno.strip() for anno in merged_category]))
 
-    merged_doc['last_updated'] = datetime.now()
+    # merged_doc['last_updated'] = datetime.now()
 
     for date_bool_key in ['has_day', 'has_month', 'has_year']:
         if date_bool_key not in merged_doc.keys():
