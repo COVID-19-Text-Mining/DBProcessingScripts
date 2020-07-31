@@ -57,7 +57,10 @@ class NBERParser(Parser):
         return doc['fulltext'] is not None
 
     def _parse_body_text(self, doc):
-        return [{'section_heading': None, 'text': t} for t in doc['fulltext']]
+        if doc['fulltext']:
+            return [{'section_heading': None, 'text': t} for t in doc['fulltext']]
+        else:
+            return []
 
     def _parse_doi(self, doc):
         return doc['Doi']
