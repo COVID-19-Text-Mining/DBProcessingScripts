@@ -194,6 +194,8 @@ def merge_documents(high_priority_doc, low_priority_doc):
 
             merged_doc[k] = list(set([anno.strip() for anno in merged_category]))
 
+    # merged_doc['last_updated'] = datetime.now()
+
     for date_bool_key in ['has_day', 'has_month', 'has_year']:
         if date_bool_key not in merged_doc.keys():
             merged_doc[date_bool_key] = False
