@@ -1,4 +1,4 @@
-    from base import Parser, VespaDocument, indexes
+from base import Parser, VespaDocument, indexes
 import os
 import pymongo
 from datetime import datetime
@@ -9,7 +9,7 @@ from io import BytesIO
 from pdf_extractor.paragraphs import extract_paragraphs_pdf
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField
 
-latest_version = 2
+latest_version = 3
 
 class PsyarxivDocument(VespaDocument):
     meta = {"collection": "Psyarxiv_parsed_vespa",
@@ -86,7 +86,7 @@ class PsyarxivParser(Parser):
 
     def _parse_abstract(self, doc):
         """ Returns the abstract of a document as a <class 'str'>"""
-        if istype(doc.get('Abstract', []), list):
+        if isinstance(doc.get('Abstract', []), list):
             return ' '.join(doc.get('Abstract', []))
         else:
             return doc.get('Abstract', "")
@@ -184,7 +184,7 @@ class PsyarxivParser(Parser):
     def _parse_is_covid19(self, doc):
         """ Returns a <class 'bool'> if we know for sure a document is specifically about COVID-19.
         If it's not immediately clear from the source it's coming from, return None."""
-        return True
+        return False
 
     def _parse_license(self, doc):
         """ Returns the license of a document as a <class 'str'> if it is specified in the original doc."""

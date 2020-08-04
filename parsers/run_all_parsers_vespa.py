@@ -83,15 +83,20 @@ def parse_documents(documents):
     for document in documents:
         parse_document(document)
         #print(document)
-    print('parsed')
+    #print('parsed')
 
 
-# for collection in unparsed_collection_list:
+#for collection in unparsed_collection_list:
 #    for document in collection.objects():
 #        from pprint import pprint
+#        if document.Doi == "10.1101/2020.06.14.20130666":
+#            new_doc = document.parse()
+#            new_doc.find_missing_ids()
+#            pprint(new_doc.to_json())
+#            
 #        pprint(document.id)
 #        parse_documents([document])
 with Parallel(n_jobs=32) as parallel:
-  parallel(delayed(parse_documents)(document) for collection in unparsed_collection_list for document in grouper(200, collection.objects))
+  parallel(delayed(parse_documents)(document) for collection in unparsed_collection_list for document in grouper(500, collection.objects))
 
 build_entries()

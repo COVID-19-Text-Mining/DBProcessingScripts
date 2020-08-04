@@ -15,7 +15,8 @@ from dimensions import DimensionsDocument
 from lens_patents import LensPatentDocument
 from chemrxiv import ChemrxivDocument
 from psyarxiv import PsyarxivDocument
-from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictField, MultipleObjectsReturned, FloatField, StringField, BooleanField
+from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictField, MultipleObjectsReturned, FloatField, StringField, BooleanField, DateTimeField, ReferenceField
+from twitter_mentions import TweetDocument
 import re
 import os
 import pymongo
@@ -83,7 +84,9 @@ class EntriesDocument(VespaDocument):
     synced = BooleanField(default=False)
     #Titles are be default too long for a unique index, so we have to hash them
     hashed_title = StringField(default=None)
-
+    last_twitter_search = DateTimeField()
+    tweets = ListField(ReferenceField(TweetDocument))
+    
 entries_keys = [k for k in EntriesDocument._fields.keys() if (k[0] != "_")]
 
 def hash_title(title):
@@ -191,8 +194,6 @@ def merge_documents(high_priority_doc, low_priority_doc):
 
             merged_doc[k] = list(set([anno.strip() for anno in merged_category]))
 
-    merged_doc['last_updated'] = datetime.now()
-
     for date_bool_key in ['has_day', 'has_month', 'has_year']:
         if date_bool_key not in merged_doc.keys():
             merged_doc[date_bool_key] = False
@@ -268,14 +269,17 @@ parsed_collections = [
 
 def build_entries():
     i=0
-    def find_matching_doc(doc):
-        return []
+    #def find_matching_doc(doc):
+    #    return []
+    run_time = datetime.now()
     for collection in parsed_collections[::1]:
         print(collection)
         last_entries_builder_sweep = db.metadata.find_one({'data': 'last_entries_builder_sweep_vespa'})['datetime']
 
+
+        print(last_entries_builder_sweep)
         docs = [doc for doc in collection.objects(_bt__gte=last_entries_builder_sweep)]
-        # docs = [doc for doc in collection.objects()]
+        #docs = [doc for doc in collection.objects()]
         print(len(docs))
         #docs = collection.objects()
         for doc in docs:
@@ -318,5 +322,6 @@ def build_entries():
                     insert_doc.save()
                 except:
                     pass
-    db.metadata.update_one({'data': 'last_entries_builder_sweep_vespa'}, {"$set": {"datetime": datetime.now()}})
+    db.metadata.update_one({'data': 'last_entries_builder_sweep_vespa'}, {"$set": {"datetime": run_time}})
+
 

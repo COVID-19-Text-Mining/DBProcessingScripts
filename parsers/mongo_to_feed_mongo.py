@@ -48,6 +48,12 @@ def doc_to_json(doc):
     else:
         doc["keywords_ml"] = []
 
+    if "last_twitter_search" in doc:
+        del doc["last_twitter_search"]
+
+    if "tweets" in doc:
+        del doc['tweets']
+
     # Tags #
     tags = []
     if "doi" in doc and doc["doi"] is not None:
