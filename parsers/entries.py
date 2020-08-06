@@ -15,6 +15,9 @@ from dimensions import DimensionsDocument
 from lens_patents import LensPatentDocument
 from chemrxiv import ChemrxivDocument
 from psyarxiv import PsyarxivDocument
+from nber import NBERDocument
+from preprints_org import PreprintsOrgDocument
+from ssrn import SSRNDocument
 from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictField, MultipleObjectsReturned, FloatField, StringField, BooleanField, DateTimeField, ReferenceField
 from twitter_mentions import TweetDocument
 import re
@@ -257,6 +260,8 @@ def merge_documents(high_priority_doc, low_priority_doc):
     return merged_doc
 
 parsed_collections = [
+    SSRNDocument,
+    PreprintsOrgDocument,
     PsyarxivDocument,
     ChemrxivDocument,
     DimensionsDocument,
@@ -267,6 +272,7 @@ parsed_collections = [
     LitCovidDocument,
     CORD19Document,
     ElsevierDocument,
+    NBERDocument
 ]
 
 def build_entries():
@@ -280,7 +286,7 @@ def build_entries():
 
 
         print(last_entries_builder_sweep)
-        docs = [doc for doc in collection.objects(_bt__gte=last_entries_builder_sweep)]
+        docs = [doc for doc in collection.objects(_bt__gt=datetime(year=2020,month=7,day=1))]
         #docs = [doc for doc in collection.objects()]
         print(len(docs))
         #docs = collection.objects()

@@ -9,6 +9,9 @@ from dimensions import UnparsedDimensionsDataDocument, UnparsedDimensionsPubDocu
 from lens_patents import UnparsedLensDocument
 from chemrxiv import UnparsedChemrxivDocument
 from psyarxiv import UnparsedPsyarxivDocument
+from nber import UnparsedNBERDocument
+from preprints_org import UnparsedPreprintsOrgDocument
+from ssrn import UnparsedSSRNDocument
 from datetime import datetime
 from joblib import Parallel, delayed
 import os
@@ -28,6 +31,9 @@ def init_mongoengine():
 init_mongoengine()
 
 unparsed_collection_list = [
+     UnparsedSSRNDocument,
+     UnparsedPreprintsOrgDocument,
+     UnparsedNBERDocument,
      UnparsedPsyarxivDocument,
      UnparsedChemrxivDocument,
      UnparsedDimensionsDataDocument,

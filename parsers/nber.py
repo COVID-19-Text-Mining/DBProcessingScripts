@@ -3,7 +3,7 @@ from datetime import datetime
 
 from mongoengine import (
     DynamicDocument, ReferenceField, DateTimeField, StringField,
-    IntField, LongField, ListField, BooleanField, connect)
+    IntField, LongField, ListField, BooleanField, FloatField, connect)
 
 from base import Parser, VespaDocument, indexes
 
@@ -19,6 +19,7 @@ class NBERDocument(VespaDocument):
     latest_version = latest_version
     unparsed_document = ReferenceField('UnparsedNBERDocument', required=True)
 
+    is_covid19_ML = FloatField()
 
 class NBERParser(Parser):
     """nber.org"""
