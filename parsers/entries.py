@@ -84,10 +84,9 @@ class EntriesDocument(VespaDocument):
     synced = BooleanField(default=False)
     #Titles are be default too long for a unique index, so we have to hash them
     hashed_title = StringField(default=None)
-
     last_twitter_search = DateTimeField()
     tweets = ListField(ReferenceField(TweetDocument))
-
+    
 entries_keys = [k for k in EntriesDocument._fields.keys() if (k[0] != "_")]
 
 def hash_title(title):
@@ -272,14 +271,17 @@ parsed_collections = [
 
 def build_entries():
     i=0
-    def find_matching_doc(doc):
-        return []
+    #def find_matching_doc(doc):
+    #    return []
+    run_time = datetime.now()
     for collection in parsed_collections[::1]:
         print(collection)
         last_entries_builder_sweep = db.metadata.find_one({'data': 'last_entries_builder_sweep_vespa'})['datetime']
 
+
+        print(last_entries_builder_sweep)
         docs = [doc for doc in collection.objects(_bt__gte=last_entries_builder_sweep)]
-        # docs = [doc for doc in collection.objects()]
+        #docs = [doc for doc in collection.objects()]
         print(len(docs))
         #docs = collection.objects()
         for doc in docs:
@@ -322,5 +324,6 @@ def build_entries():
                     insert_doc.save()
                 except:
                     pass
-    db.metadata.update_one({'data': 'last_entries_builder_sweep_vespa'}, {"$set": {"datetime": datetime.now()}})
+    db.metadata.update_one({'data': 'last_entries_builder_sweep_vespa'}, {"$set": {"datetime": run_time}})
+
 

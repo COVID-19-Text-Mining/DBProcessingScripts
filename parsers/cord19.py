@@ -6,8 +6,9 @@ import requests
 from utils import clean_title, clean_abstract, find_cited_by, find_references
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField, GenericReferenceField
 from collections import defaultdict
+from crossref.restful import Works
 
-latest_version = 2
+latest_version = 4
 
 class CORD19Document(VespaDocument):
     meta = {"collection": "CORD_parsed_vespa",
@@ -355,7 +356,18 @@ class CORD19Parser(Parser):
     def _parse_document_type(self, doc):
         """ Returns the document type of a document as a <class 'str'>.
         e.g. 'paper', 'clinical_trial', 'patent', 'news'. """
-        return 'paper'
+        try:
+            doi = self._parse_doi(doc)
+
+            works = Works()
+            doc_type = works.doi(doi)['type']
+
+            if doc_type == 'book-chapter':
+                return 'chapter'
+            else:
+                return 'paper'
+        except:
+            return 'paper'
 
     def _parse_copyright(self, doc):
         """ Returns the copyright notice of a document as a <class 'str'>."""
