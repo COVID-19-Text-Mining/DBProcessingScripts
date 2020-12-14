@@ -12,12 +12,23 @@ from psyarxiv import UnparsedPsyarxivDocument
 from nber import UnparsedNBERDocument
 from preprints_org import UnparsedPreprintsOrgDocument
 from ssrn import UnparsedSSRNDocument
+from osf_org import UnparsedOSFOrgDocument
 from datetime import datetime
 from joblib import Parallel, delayed
 import os
 import json
 import itertools
-from entries import build_entries
+from entries import build_entries, EntriesDocument
+from twitter_mentions import TwitterMentions
+import pymongo
+import os
+from mongoengine.queryset.visitor import Q
+
+client = pymongo.MongoClient(os.getenv("COVID_HOST"), username=os.getenv("COVID_USER"),
+                             password=os.getenv("COVID_PASS"), authSource=os.getenv("COVID_DB"))
+db = client[os.getenv("COVID_DB")]
+
+db.entries_vespa2.delete_many({"publication_date": {"$exists": False}})
 
 def init_mongoengine():
     connect(db=os.getenv("COVID_DB"),
@@ -31,6 +42,7 @@ def init_mongoengine():
 init_mongoengine()
 
 unparsed_collection_list = [
+     UnparsedOSFOrgDocument,
      UnparsedSSRNDocument,
      UnparsedPreprintsOrgDocument,
      UnparsedNBERDocument,
@@ -60,20 +72,21 @@ def parse_document(document):
 
     #print(parsed_document)
     if parsed_document is None or document.last_updated > parsed_document._bt or parsed_document.version < parsed_document.latest_version:
-        if parsed_document is None:
-            #print("parsing")
-            parsed_document = document.parse()
-        else:
-            new_doc = document.parse()
-            parsed_document.delete()
-            parsed_document = new_doc
-        document.parsed_document = parsed_document
-        parsed_document.find_missing_ids()
-        #try:
-        parsed_document.save()
-        document.save()
-        #except:
-        #    pass
+        try:
+            if parsed_document is None:
+                #print("parsing")
+                parsed_document = document.parse()
+            else:
+                new_doc = document.parse()
+                parsed_document.delete()
+                parsed_document = new_doc
+            document.parsed_document = parsed_document
+            parsed_document.find_missing_ids()
+            #try:
+            parsed_document.save()
+            document.save()
+        except:
+            pass
 
 def grouper(n, iterable):
     it = iter(iterable)
@@ -106,3 +119,7 @@ with Parallel(n_jobs=32) as parallel:
   parallel(delayed(parse_documents)(document) for collection in unparsed_collection_list for document in grouper(500, collection.objects))
 
 build_entries()
+
+#twitter_mentions = TwitterMentions()
+#for doc in EntriesDocument.objects(Q(last_twitter_search__not__exists=True)):
+#    twitter_mentions.query_doc(doc)

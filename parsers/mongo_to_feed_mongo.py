@@ -54,6 +54,8 @@ def doc_to_json(doc):
     if "tweets" in doc:
         del doc['tweets']
 
+    if "altmetric" in doc:
+        del doc['altmetric']
     # Tags #
     tags = []
     if "doi" in doc and doc["doi"] is not None:
@@ -150,7 +152,7 @@ def process_chunk(chunk):
 if __name__ == '__main__':
     new_docs = db.entries_vespa2.find({'synced':False})
     processed_docs = []
-    for doc in tqdm(list(new_docs), total = new_docs.count()):
+    for doc in tqdm(list(new_docs), total = new_docs.count(),mininterval=20,maxinterval=60):
         processed_doc=doc_to_json(doc)
         if processed_doc is not None:
             db.entries_vespa_upload.replace_one({'put': processed_doc['put']}, processed_doc, upsert=True)

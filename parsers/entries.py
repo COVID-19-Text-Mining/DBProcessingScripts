@@ -18,6 +18,7 @@ from psyarxiv import PsyarxivDocument
 from nber import NBERDocument
 from preprints_org import PreprintsOrgDocument
 from ssrn import SSRNDocument
+from osf_org import OSFOrgDocument
 from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictField, MultipleObjectsReturned, FloatField, StringField, BooleanField, DateTimeField, ReferenceField
 from twitter_mentions import TweetDocument
 import re
@@ -89,6 +90,7 @@ class EntriesDocument(VespaDocument):
     hashed_title = StringField(default=None)
     last_twitter_search = DateTimeField()
     tweets = ListField(ReferenceField(TweetDocument))
+    altmetric = StringField()
     
 entries_keys = [k for k in EntriesDocument._fields.keys() if (k[0] != "_")]
 
@@ -106,7 +108,7 @@ def find_matching_doc(doc):
     scopus_eid = doc['scopus_eid'] if doc['scopus_eid'] is not None else "____"
     title = hash_title(doc['title']) if doc['title'] is not None and doc['title'] != "" else "________not_a_real_title_____"
 
-    if doi[-3:-1] == ".v":
+    if doi[-3:-1] == ".v" and not doc['origin'] =='Scraper_preprints_org':
         doi = doi[:-3]
 
     pattern = re.compile("{}(\.v[0-9])?".format(re.escape(doi)))
@@ -248,7 +250,7 @@ def merge_documents(high_priority_doc, low_priority_doc):
                 author['name'] = ' '.join(map(lambda x: x.strip(), reversed(author['name'].split(','))))
 
 
-    if merged_doc['doi'] is not None and merged_doc['doi'][-3:-1] == ".v":
+    if merged_doc['doi'] is not None and merged_doc['doi'][-3:-1] == ".v" and not merged_doc['origin'] == 'Scraper_preprints_org':
         merged_doc['doi'] = merged_doc['doi'][:-3]
 
     if merged_doc['publication_date'] is not None:
@@ -260,6 +262,7 @@ def merge_documents(high_priority_doc, low_priority_doc):
     return merged_doc
 
 parsed_collections = [
+    OSFOrgDocument,
     SSRNDocument,
     PreprintsOrgDocument,
     PsyarxivDocument,
@@ -286,7 +289,7 @@ def build_entries():
 
 
         print(last_entries_builder_sweep)
-        docs = [doc for doc in collection.objects(_bt__gt=datetime(year=2020,month=7,day=1))]
+        docs = [doc for doc in collection.objects(_bt__gt=last_entries_builder_sweep)]
         #docs = [doc for doc in collection.objects()]
         print(len(docs))
         #docs = collection.objects()

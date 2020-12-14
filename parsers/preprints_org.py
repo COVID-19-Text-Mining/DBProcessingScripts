@@ -7,7 +7,7 @@ from mongoengine import (
 
 from base import Parser, VespaDocument, indexes
 
-latest_version = 1
+latest_version = 3
 
 
 class PreprintsOrgDocument(VespaDocument):
