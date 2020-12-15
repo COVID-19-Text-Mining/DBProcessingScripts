@@ -2,7 +2,8 @@
 
 #source /global/homes/a/amaliet/.bash_profile                                                                                                                                                               
 #cov_python=/global/homes/a/amaliet/.conda/envs/covidscholar/bin/python                                                                                                                                     
-cd DBProcessingScripts/parsers
+cd /user/src/app/DBProcessingScripts
+cd parsers
 python run_all_parsers_vespa.py
 cd ../ML_builders
 python is_covid19_class.py
