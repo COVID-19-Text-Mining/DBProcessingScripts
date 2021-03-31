@@ -35,7 +35,7 @@ class RapidReviewsParser(Parser):
 
     def _parse_doi(self, doc):
         """ Returns the DOI of a document as a <class 'str'>"""
-        return doc.get('doi', None)
+        return doc.get('doi', None).replace("https://doi.org/", "")
 
     def _parse_title(self, doc):
         """ Returns the title of a document as a <class 'str'>"""
