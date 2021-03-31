@@ -3,7 +3,8 @@ from elsevier import UnparsedElsevierDocument
 from google_form_submissions import UnparsedGoogleFormSubmissionDocument
 from litcovid import UnparsedLitCovidDocument
 from biorxiv import UnparsedBiorxivDocument
-from cord19 import UnparsedCORD19CustomDocument, UnparsedCORD19CommDocument, UnparsedCORD19NoncommDocument, UnparsedCORD19XrxivDocument
+from cord19 import UnparsedCORD19CustomDocument, UnparsedCORD19CommDocument, UnparsedCORD19NoncommDocument, \
+    UnparsedCORD19XrxivDocument
 from pho import UnparsedPHODocument
 from dimensions import UnparsedDimensionsDataDocument, UnparsedDimensionsPubDocument, UnparsedDimensionsTrialDocument
 from lens_patents import UnparsedLensDocument
@@ -13,6 +14,7 @@ from nber import UnparsedNBERDocument
 from preprints_org import UnparsedPreprintsOrgDocument
 from ssrn import UnparsedSSRNDocument
 from osf_org import UnparsedOSFOrgDocument
+from rapidreviews_user_submissions import UnparsedRapidReviewDocument
 from datetime import datetime
 from joblib import Parallel, delayed
 import os
@@ -30,6 +32,7 @@ db = client[os.getenv("COVID_DB")]
 
 db.entries_vespa2.delete_many({"publication_date": {"$exists": False}})
 
+
 def init_mongoengine():
     connect(db=os.getenv("COVID_DB"),
             name=os.getenv("COVID_DB"),
@@ -39,42 +42,44 @@ def init_mongoengine():
             authentication_source=os.getenv("COVID_DB"),
             )
 
+
 init_mongoengine()
 
 unparsed_collection_list = [
-     UnparsedOSFOrgDocument,
-     UnparsedSSRNDocument,
-     UnparsedPreprintsOrgDocument,
-     UnparsedNBERDocument,
-     UnparsedPsyarxivDocument,
-     UnparsedChemrxivDocument,
-     UnparsedDimensionsDataDocument,
-     UnparsedDimensionsPubDocument,
-     UnparsedDimensionsTrialDocument,
-     UnparsedLensDocument,
-     UnparsedGoogleFormSubmissionDocument, 
-     UnparsedPHODocument,
-     UnparsedBiorxivDocument, 
-     UnparsedLitCovidDocument, 
-     UnparsedElsevierDocument,
-     UnparsedCORD19CustomDocument,
-     UnparsedCORD19CommDocument,
-     UnparsedCORD19NoncommDocument, 
-     UnparsedCORD19XrxivDocument,
-     ]
+    UnparsedOSFOrgDocument,
+    UnparsedSSRNDocument,
+    UnparsedPreprintsOrgDocument,
+    UnparsedNBERDocument,
+    UnparsedPsyarxivDocument,
+    UnparsedChemrxivDocument,
+    UnparsedDimensionsDataDocument,
+    UnparsedDimensionsPubDocument,
+    UnparsedDimensionsTrialDocument,
+    UnparsedLensDocument,
+    UnparsedGoogleFormSubmissionDocument,
+    UnparsedPHODocument,
+    UnparsedBiorxivDocument,
+    UnparsedLitCovidDocument,
+    UnparsedElsevierDocument,
+    UnparsedCORD19CustomDocument,
+    UnparsedCORD19CommDocument,
+    UnparsedCORD19NoncommDocument,
+    UnparsedCORD19XrxivDocument,
+    UnparsedRapidReviewDocument
+]
+
 
 def parse_document(document):
-
     try:
         parsed_document = document.parsed_document
     except DoesNotExist:
         parsed_document = None
 
-    #print(parsed_document)
+    # print(parsed_document)
     if parsed_document is None or document.last_updated > parsed_document._bt or parsed_document.version < parsed_document.latest_version:
         try:
             if parsed_document is None:
-                #print("parsing")
+                # print("parsing")
                 parsed_document = document.parse()
             else:
                 new_doc = document.parse()
@@ -82,11 +87,12 @@ def parse_document(document):
                 parsed_document = new_doc
             document.parsed_document = parsed_document
             parsed_document.find_missing_ids()
-            #try:
+            # try:
             parsed_document.save()
             document.save()
         except:
             pass
+
 
 def grouper(n, iterable):
     it = iter(iterable)
@@ -96,16 +102,17 @@ def grouper(n, iterable):
             return
         yield chunk
 
+
 def parse_documents(documents):
     init_mongoengine()
     # print("parsing")
     for document in documents:
         parse_document(document)
-        #print(document)
-    #print('parsed')
+        # print(document)
+    # print('parsed')
 
 
-#for collection in unparsed_collection_list:
+# for collection in unparsed_collection_list:
 #    for document in collection.objects():
 #        from pprint import pprint
 #        if document.Doi == "10.1101/2020.06.14.20130666":
@@ -116,10 +123,11 @@ def parse_documents(documents):
 #        pprint(document.id)
 #        parse_documents([document])
 with Parallel(n_jobs=32) as parallel:
-  parallel(delayed(parse_documents)(document) for collection in unparsed_collection_list for document in grouper(500, collection.objects))
+    parallel(delayed(parse_documents)(document) for collection in unparsed_collection_list for document in
+             grouper(500, collection.objects))
 
 build_entries()
 
-#twitter_mentions = TwitterMentions()
-#for doc in EntriesDocument.objects(Q(last_twitter_search__not__exists=True)):
+# twitter_mentions = TwitterMentions()
+# for doc in EntriesDocument.objects(Q(last_twitter_search__not__exists=True)):
 #    twitter_mentions.query_doc(doc)
