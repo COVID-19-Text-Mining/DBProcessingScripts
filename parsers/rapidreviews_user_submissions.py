@@ -8,6 +8,8 @@ import traceback
 from io import BytesIO
 from pdf_extractor.paragraphs import extract_paragraphs_pdf
 from mongoengine import DynamicDocument, ReferenceField, DateTimeField
+import re
+
 
 latest_version = 1
 
@@ -35,7 +37,11 @@ class RapidReviewsParser(Parser):
 
     def _parse_doi(self, doc):
         """ Returns the DOI of a document as a <class 'str'>"""
-        return doc.get('doi', None).replace("https://doi.org/", "")
+        maybedoi = doc.get('doi', None)
+        maybedoi = re.search("10.\d{4,9}/[-._;()/:A-Z0-9]+$", maybedoi)
+        if maybedoi:
+            maybedoi = maybedoi.string
+        return maybedoi
 
     def _parse_title(self, doc):
         """ Returns the title of a document as a <class 'str'>"""
