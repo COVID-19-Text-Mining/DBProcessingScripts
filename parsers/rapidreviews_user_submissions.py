@@ -220,8 +220,7 @@ class RapidReviewsParser(Parser):
         return parsed_doc
 
 class UnparsedRapidReviewDocument(DynamicDocument):
-    meta = {"collection": "rapidreview_submissions"
-    }
+    meta = {"collection": "rapidreview_submissions"}
 
     parser = RapidReviewsParser()
 
