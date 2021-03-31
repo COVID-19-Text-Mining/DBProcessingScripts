@@ -19,7 +19,7 @@ from nber import NBERDocument
 from preprints_org import PreprintsOrgDocument
 from ssrn import SSRNDocument
 from osf_org import OSFOrgDocument
-from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictField, MultipleObjectsReturned, FloatField, StringField, BooleanField, DateTimeField, ReferenceField
+from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictField, MultipleObjectsReturned, FloatField, StringField, BooleanField, DateTimeField, ReferenceField, DynamicField
 from twitter_mentions import TweetDocument
 import re
 import os
@@ -90,7 +90,7 @@ class EntriesDocument(VespaDocument):
     hashed_title = StringField(default=None)
     last_twitter_search = DateTimeField()
     tweets = ListField(ReferenceField(TweetDocument))
-    altmetric = StringField()
+    altmetric = DynamicField()
     
 entries_keys = [k for k in EntriesDocument._fields.keys() if (k[0] != "_")]
 
