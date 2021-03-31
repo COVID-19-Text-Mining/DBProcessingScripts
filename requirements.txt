@@ -49,7 +49,7 @@ jinja2==2.11.1
 jmespath==0.9.5
 joblib==0.14.1
 kiwisolver==1.2.0
-lxml==4.3.5
+lxml==4.6.3
 markupsafe==1.1.1
 matplotlib==3.2.1
 mongoengine==0.19.1
