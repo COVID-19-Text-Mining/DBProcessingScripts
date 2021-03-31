@@ -37,10 +37,10 @@ class RapidReviewsParser(Parser):
 
     def _parse_doi(self, doc):
         """ Returns the DOI of a document as a <class 'str'>"""
-        maybedoi = doc.get('doi', None)
-        maybedoi = re.search("10.\d{4,9}/[-._;()/:A-Z0-9]+$", maybedoi)
+        maybedoi = doc.get('doi', None).strip()
+        maybedoi = re.search("10.\d{4,9}/[-._;()/:A-Za-z0-9]+$", maybedoi)
         if maybedoi:
-            maybedoi = maybedoi.string
+            maybedoi = maybedoi.group()
         return maybedoi
 
     def _parse_title(self, doc):
