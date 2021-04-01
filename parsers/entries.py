@@ -19,6 +19,7 @@ from nber import NBERDocument
 from preprints_org import PreprintsOrgDocument
 from ssrn import SSRNDocument
 from osf_org import OSFOrgDocument
+from rapidreviews_user_submissions import RapidReviewsDocument
 from mongoengine import ListField, GenericReferenceField, DoesNotExist, DictField, MultipleObjectsReturned, FloatField, StringField, BooleanField, DateTimeField, ReferenceField, DynamicField
 from twitter_mentions import TweetDocument
 import re
@@ -275,7 +276,8 @@ parsed_collections = [
     LitCovidDocument,
     CORD19Document,
     ElsevierDocument,
-    NBERDocument
+    NBERDocument,
+    RapidReviewsDocument
 ]
 
 def build_entries():

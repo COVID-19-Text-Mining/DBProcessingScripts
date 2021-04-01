@@ -46,6 +46,7 @@ def init_mongoengine():
 init_mongoengine()
 
 unparsed_collection_list = [
+    UnparsedRapidReviewDocument,
     UnparsedOSFOrgDocument,
     UnparsedSSRNDocument,
     UnparsedPreprintsOrgDocument,
@@ -65,7 +66,6 @@ unparsed_collection_list = [
     UnparsedCORD19CommDocument,
     UnparsedCORD19NoncommDocument,
     UnparsedCORD19XrxivDocument,
-    UnparsedRapidReviewDocument
 ]
 
 

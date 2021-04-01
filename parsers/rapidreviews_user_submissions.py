@@ -14,7 +14,7 @@ import re
 latest_version = 1
 
 class RapidReviewsDocument(VespaDocument):
-    meta = {"collection": "rapidreview_submissions",
+    meta = {"collection": "rapidreview_submissions_parsed",
             "indexes": indexes
     }
 
